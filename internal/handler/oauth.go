@@ -42,10 +42,10 @@ type oauthStore interface {
 // 生产实现必须是 *store.Store：接口与实现一旦对不上，这里先编译失败。
 var _ oauthStore = (*store.Store)(nil)
 
-func (h *Handler) registerOAuth(api *gin.RouterGroup, limiter gin.HandlerFunc) {
+func (h *Handler) registerOAuth(api *gin.RouterGroup) {
 	s := h.oauth
 	oauth := api.Group("/oauth")
-	oauth.GET("/authorize", limiter, func(c *gin.Context) {
+	oauth.GET("/authorize", func(c *gin.Context) {
 		clientID := c.Query("client_id")
 		redirectURI := c.Query("redirect_uri")
 		responseType := c.Query("response_type")
@@ -125,7 +125,7 @@ func (h *Handler) registerOAuth(api *gin.RouterGroup, limiter gin.HandlerFunc) {
 		}
 		c.Redirect(http.StatusFound, oauthRedirect(redirectURI, [][2]string{{"code", code}, {"state", state}}))
 	})
-	oauth.POST("/token", limiter, func(c *gin.Context) {
+	oauth.POST("/token", func(c *gin.Context) {
 		grantType := c.PostForm("grant_type")
 		code := c.PostForm("code")
 		clientID := c.PostForm("client_id")

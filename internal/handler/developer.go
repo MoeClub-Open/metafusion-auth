@@ -44,7 +44,7 @@ func (h *Handler) developers() developerStore {
 	return h.store
 }
 
-func (h *Handler) registerDeveloper(api *gin.RouterGroup, limiter gin.HandlerFunc) {
+func (h *Handler) registerDeveloper(api *gin.RouterGroup) {
 	s := h.developers()
 	authed := requireUser()
 	group := api.Group("/developer")
@@ -69,7 +69,7 @@ func (h *Handler) registerDeveloper(api *gin.RouterGroup, limiter gin.HandlerFun
 		apps, err := s.ListDeveloperApps(c.Request.Context(), currentUser(c))
 		respond(c, gin.H{"items": apps}, err)
 	})
-	group.POST("/apps", limiter, authed, func(c *gin.Context) {
+	group.POST("/apps", authed, func(c *gin.Context) {
 		var in store.DeveloperAppInput
 		if !body(c, &in) {
 			return
@@ -99,7 +99,7 @@ func (h *Handler) registerDeveloper(api *gin.RouterGroup, limiter gin.HandlerFun
 		}
 		respond(c, gin.H{"app": app}, err)
 	})
-	group.POST("/apps/:id/rotate-secret", limiter, authed, func(c *gin.Context) {
+	group.POST("/apps/:id/rotate-secret", authed, func(c *gin.Context) {
 		app, secret, err := s.RotateDeveloperAppSecret(c.Request.Context(), c.Param("id"), currentUser(c))
 		if err != nil {
 			respond(c, nil, err)

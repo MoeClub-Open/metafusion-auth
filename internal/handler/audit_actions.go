@@ -94,7 +94,11 @@ func (h *Handler) auditActor(c *gin.Context) audit.Actor {
 	if u == nil {
 		return audit.Actor{CredentialType: audit.CredentialAnonymous}
 	}
-	return audit.Actor{UserID: u.ID, Username: u.Username, CredentialType: audit.CredentialSession}
+	kind := audit.CredentialSession
+	if u.TokenUse == "pat" {
+		kind = audit.CredentialPAT
+	}
+	return audit.Actor{UserID: u.ID, Username: u.Username, CredentialType: kind}
 }
 
 // auditUserChanges 把用户快照翻成变更摘要的 before/after 片段。email 原样交给 audit 包，

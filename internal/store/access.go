@@ -37,6 +37,7 @@ type PermissionCode struct {
 // 它只是"清单"，不是白名单：下游可以自定义新码，格式合法即可（见 ValidPermissionCode）。
 func PermissionCatalog() []PermissionCode {
 	return []PermissionCode{
+		{Code: "mcp.connect", Service: "mcp", Names: map[string]string{"zh-CN": "连接 MCP", "zh-TW": "連接 MCP", "ja-JP": "MCP 接続", "en-US": "Connect MCP"}, Descriptions: map[string]string{"zh-CN": "仅证明账号身份，不授予业务编辑权限", "zh-TW": "僅證明帳號身分，不授予業務編輯權限", "ja-JP": "本人確認のみ。編集権限は付与しません", "en-US": "Identity only; grants no business editing permissions"}},
 		{Code: "*", Service: "auth", Names: map[string]string{"zh-CN": "全部权限", "zh-TW": "全部權限", "ja-JP": "すべての権限", "en-US": "All permissions"}},
 		{Code: "auth.users.manage", Service: "auth", Names: map[string]string{"zh-CN": "管理账号", "zh-TW": "管理帳號", "ja-JP": "アカウント管理", "en-US": "Manage accounts"}},
 		{Code: "auth.groups.manage", Service: "auth", Names: map[string]string{"zh-CN": "管理权限组", "zh-TW": "管理權限組", "ja-JP": "権限グループ管理", "en-US": "Manage permission groups"}},
@@ -116,6 +117,10 @@ func Can(u *User, code string) bool {
 	if u.IsThirdParty() {
 		return false
 	}
+	// MCP 连接凭据只证明账号身份，不授予任何业务管理权限。
+	if code == "mcp.connect" {
+		return u.ID != "" && !u.Banned
+	}
 	return HasPermission(u.Permissions, code)
 }
 
@@ -136,9 +141,8 @@ const (
 
 // DefaultRateLimitPerMinute 是限流默认速率，单位"次/分钟"。
 //
-// 它必须等于本设置真正生效前的强制值（15/分钟）：设置一旦接线，默认值就成了线上行为，
-// 顺手改成别的数字等于在"接线"这一步悄悄改掉限流强度。
-const DefaultRateLimitPerMinute = 15
+// 默认读写各 180 次/分钟，admin 组不计业务额度。
+const DefaultRateLimitPerMinute = 180
 
 // DefaultSettings 是实例设置默认值：**注册默认关闭**（受控站点），邀请码默认不强制，
 // 新注册账号默认进 member 组（无任何特权）。

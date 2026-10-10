@@ -32,6 +32,7 @@ type User struct {
 	// ClientID/Scope 只在第三方身份上出现（哪次授权、授予了哪些 scope）。
 	// omitempty 保证站内载荷形状不变；下游管理 API 必须拒绝非会话用途。
 	TokenUse string `json:"token_use,omitempty"`
+	PATID    string `json:"-"`
 	ClientID string `json:"client_id,omitempty"`
 	Scope    string `json:"scope,omitempty"`
 	// Banned 只在为真时下发：既有客户端的载荷形状保持不变（omitempty），
@@ -200,7 +201,8 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(10)
+	db.SetMaxOpenConns(32)
+	db.SetMaxIdleConns(16)
 	if err = db.PingContext(ctx); err != nil {
 		db.Close()
 		return nil, err

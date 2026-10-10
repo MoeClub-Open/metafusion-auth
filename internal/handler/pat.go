@@ -53,13 +53,13 @@ const (
 	//
 	// 两个维度都不读实例设置：auth_rate_limit_enabled / _per_minute 是**认证写入类端点**的
 	// 开关，内省是读语义——运维为了压注册洪水关掉写入限流，不该连带把下游的鉴权限流松开。
-	patIntrospectPerIPPerMinute    = 600
-	patIntrospectPerTokenPerMinute = 60
+	patIntrospectPerIPPerMinute    = 18000
+	patIntrospectPerTokenPerMinute = 180
 	// patIntrospectWindow 是上面两个限额的固定窗口长度。
 	patIntrospectWindow = time.Minute
 )
 
-func (h *Handler) registerTokens(api *gin.RouterGroup, limiter gin.HandlerFunc) {
+func (h *Handler) registerTokens(api *gin.RouterGroup) {
 	s := h.personalTokens()
 	authed := requireUser()
 	byIP := newPATBuckets(patIntrospectPerIPPerMinute)
@@ -72,7 +72,7 @@ func (h *Handler) registerTokens(api *gin.RouterGroup, limiter gin.HandlerFunc) 
 
 	// 创建：需登录（自助），限流沿用认证写入那一套（默认 15 次/分钟，按实例设置）。
 	// 201 的响应体是**明文唯一出现的地方**：库里只有哈希，之后任何路径都取不回。
-	api.POST("/auth/tokens", limiter, authed, func(c *gin.Context) {
+	api.POST("/auth/tokens", authed, func(c *gin.Context) {
 		var in struct {
 			Name          string   `json:"name"`
 			Scopes        []string `json:"scopes"`
@@ -105,7 +105,7 @@ func (h *Handler) registerTokens(api *gin.RouterGroup, limiter gin.HandlerFunc) 
 	})
 
 	// 吊销：只写 revoked_at，幂等（已经吊销过再删仍然 200）。生效窗口见内省注释。
-	api.DELETE("/auth/tokens/:id", limiter, authed, func(c *gin.Context) {
+	api.DELETE("/auth/tokens/:id", authed, func(c *gin.Context) {
 		err := s.RevokePersonalAccessToken(c.Request.Context(), currentUser(c).ID, c.Param("id"))
 		audit.Describe(c, audit.Detail{TargetType: "pat", TargetID: c.Param("id")})
 		respond(c, gin.H{"ok": true}, err)
@@ -121,23 +121,35 @@ func (h *Handler) registerTokens(api *gin.RouterGroup, limiter gin.HandlerFunc) 
 			return
 		}
 		now := time.Now()
-		if byIP.use(c.ClientIP(), now) || byToken.use(store.HashPersonalAccessToken(in.Token), now) {
-			c.Header("Retry-After", "60")
-			c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate_limited"})
-			return
-		}
 		p, err := s.IntrospectPersonalAccessToken(c.Request.Context(), in.Token)
 		switch {
 		case err == nil:
+			admin := false
+			for _, group := range p.Groups {
+				if group == "admin" {
+					admin = true
+				}
+			}
+			if !admin && (byIP.use(c.ClientIP(), now) || byToken.use(store.HashPersonalAccessToken(in.Token), now)) {
+				c.Header("Retry-After", "60")
+				c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate_limited"})
+				return
+			}
 			// 结果里含身份与权限，代理/浏览器缓存都会让"吊销后仍在用"的窗口变长。
 			c.Header("Cache-Control", "no-store")
 			c.JSON(http.StatusOK, gin.H{
 				"valid": true, "token_id": p.TokenID, "token_name": p.TokenName,
 				"user_id": p.UserID, "username": p.Username,
+				"groups":      p.Groups,
 				"permissions": p.Permissions, "scopes": p.Scopes,
 				"token_prefix": p.TokenPrefix, "expires_at": p.ExpiresAt,
 			})
 		case errors.Is(err, store.ErrInvalidPAT):
+			if byIP.use(c.ClientIP(), now) || byToken.use(store.HashPersonalAccessToken(in.Token), now) {
+				c.Header("Retry-After", "60")
+				c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate_limited"})
+				return
+			}
 			// 无效 / 已吊销 / 已过期 / 账号被封：同一状态码 + 同一个机器码，不区分原因。
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
 		default:

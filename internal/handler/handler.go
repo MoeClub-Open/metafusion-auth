@@ -62,14 +62,15 @@ func (h *Handler) Register(r *gin.Engine) {
 	limiter := h.rateLimiter()
 	api := r.Group("/api")
 	api.Use(h.identity())
+	api.Use(limiter)
 	// 审计中间件必须挂在任何路由注册之前：gin 的 RouterGroup.Use 只对之后注册的路由生效
 	// （注册时把当时的 handler 链复制进路由表）。
 	api.Use(h.auditMiddleware())
-	h.registerAuth(api, limiter)
-	h.registerOAuth(api, limiter)
-	h.registerDeveloper(api, limiter)
+	h.registerAuth(api)
+	h.registerOAuth(api)
+	h.registerDeveloper(api)
 	// 个人访问令牌：/api/auth/tokens*（自助创建/列出/吊销 + 下游用的内省）。
-	h.registerTokens(api, limiter)
+	h.registerTokens(api)
 	// 公开账号资料 GET /users/:id（匿名可读，email 仅本人可见）。
 	h.registerPublicUsers(api)
 	// 审计读取面 GET /admin/audit-logs（跨服务审计的唯一读取端点）。
@@ -82,13 +83,13 @@ func (h *Handler) Register(r *gin.Engine) {
 	r.GET("/.well-known/jwks.json", h.jwks)
 }
 
-func (h *Handler) registerAuth(api *gin.RouterGroup, limiter gin.HandlerFunc) {
+func (h *Handler) registerAuth(api *gin.RouterGroup) {
 	s := h.store
 	api.GET("/setup", func(c *gin.Context) {
 		needed, err := s.SetupNeeded(c.Request.Context())
 		respond(c, gin.H{"needed": needed, "is_initialized": !needed, "has_admin": !needed}, err)
 	})
-	api.POST("/setup", limiter, func(c *gin.Context) {
+	api.POST("/setup", func(c *gin.Context) {
 		var in struct {
 			Username string `json:"username"`
 			Email    string `json:"email"`
@@ -108,7 +109,7 @@ func (h *Handler) registerAuth(api *gin.RouterGroup, limiter gin.HandlerFunc) {
 	})
 	// 登录失败保护：先过按 IP 的请求速率层（limiter），再过按账号+IP 的失败凭据层
 	// （loginGuardMiddleware，见 login_guard.go 的层次说明与阈值）。
-	api.POST("/auth/login", limiter, h.loginGuardMiddleware(), func(c *gin.Context) {
+	api.POST("/auth/login", h.loginGuardMiddleware(), func(c *gin.Context) {
 		var in struct {
 			Username string `json:"username"`
 			Email    string `json:"email"`
@@ -135,7 +136,7 @@ func (h *Handler) registerAuth(api *gin.RouterGroup, limiter gin.HandlerFunc) {
 
 	// POST /auth/refresh 用当前 Bearer/Cookie 令牌换发新令牌（服务端轮转会话行）。
 	// 前端据此在访问令牌临近过期时续期，无需单独的 refresh_token 字段。
-	api.POST("/auth/refresh", limiter, func(c *gin.Context) {
+	api.POST("/auth/refresh", func(c *gin.Context) {
 		token := tokenFromRequest(c)
 		next, u, err := s.Refresh(c.Request.Context(), token)
 		if err == nil && next != "" {
@@ -193,7 +194,7 @@ func (h *Handler) registerAuth(api *gin.RouterGroup, limiter gin.HandlerFunc) {
 
 	// POST /auth/register 自助注册：受实例设置约束（开放注册 + 可选邀请码），
 	// 成功即签发登录令牌，前端可直接进入登录态。
-	api.POST("/auth/register", limiter, func(c *gin.Context) {
+	api.POST("/auth/register", func(c *gin.Context) {
 		var in struct {
 			Username   string `json:"username"`
 			Email      string `json:"email"`
@@ -493,6 +494,18 @@ func (h *Handler) identity() gin.HandlerFunc {
 			if token == "" {
 				continue
 			}
+			// PAT 仅用于公共业务 API；登录、账号安全与 OAuth 授权仍要求站内会话。
+			if strings.HasPrefix(token, store.PATPrefix) {
+				p := c.Request.URL.Path
+				if !strings.HasPrefix(p, "/api/admin/") && !strings.HasPrefix(p, "/api/users/") {
+					continue
+				}
+				if principal, err := h.tokens.IntrospectPersonalAccessToken(c.Request.Context(), token); err == nil {
+					c.Set(userKey, &store.User{ID: principal.UserID, Username: principal.Username, Groups: principal.Groups, Permissions: principal.Permissions, TokenUse: "pat", PATID: principal.TokenID})
+					break
+				}
+				continue
+			}
 			if u, err := h.store.Authenticate(c.Request.Context(), token); err == nil {
 				c.Set(userKey, u)
 				break
@@ -740,6 +753,10 @@ func (h *Handler) rateLimiter() gin.HandlerFunc {
 	buckets := map[string]*bucket{}
 	window := time.Minute
 	return func(c *gin.Context) {
+		if c.FullPath() == "/api/auth/tokens/introspect" {
+			c.Next()
+			return
+		}
 		// 没有注入来源时按默认策略（与接线前的硬编码 15/分钟一致）：
 		// 直接构造 Handler 的用例（oauth 内存替身）也走同一条判定，不会悄悄变成"不限流"。
 		enabled, limit := true, store.DefaultRateLimitPerMinute
@@ -755,6 +772,20 @@ func (h *Handler) rateLimiter() gin.HandlerFunc {
 			return
 		}
 		key := c.ClientIP()
+		if u := currentUser(c); u != nil && !u.IsThirdParty() {
+			for _, group := range u.Groups {
+				if group == "admin" {
+					c.Next()
+					return
+				}
+			}
+			key = "user:" + u.ID
+		}
+		category := "write"
+		if c.Request.Method == "GET" || c.Request.Method == "HEAD" {
+			category = "read"
+		}
+		key += "|" + category
 		now := time.Now()
 		mu.Lock()
 		b, ok := buckets[key]

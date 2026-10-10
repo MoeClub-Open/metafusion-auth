@@ -87,10 +87,11 @@ func (t PersonalAccessToken) activeAt(now time.Time) bool {
 // TokenID/TokenName 让下游能区分"同一账号的哪一张令牌在调用"（按前缀只能认出大概，
 // 按 id/name 才能落审计与限流；明文与哈希都不下发）。
 type PATPrincipal struct {
-	TokenID   string `json:"token_id"`
-	TokenName string `json:"token_name"`
-	UserID    string `json:"user_id"`
-	Username  string `json:"username"`
+	TokenID   string   `json:"token_id"`
+	TokenName string   `json:"token_name"`
+	UserID    string   `json:"user_id"`
+	Username  string   `json:"username"`
+	Groups    []string `json:"groups"`
 	// Permissions 是**有效权限**：账号现时权限 ∩ 该 PAT 的 scopes。创建时 scopes 至少一项，
 	// 但账号权限被收回后交集可能为空（空数组）——那正是最危险的一格：
 	// 下游必须以它为准，且只能用 HasPermission(perms, code) 语义；
@@ -355,6 +356,7 @@ func (s *Store) IntrospectPersonalAccessToken(ctx context.Context, token string)
 	p := &PATPrincipal{
 		TokenID: tokenID, TokenName: tokenName,
 		UserID: userID, Username: username,
+		Groups:      u.Groups,
 		Permissions: EffectivePATPermissions(&u, scopes),
 		Scopes:      scopes, TokenPrefix: patPrefixOf(token),
 	}

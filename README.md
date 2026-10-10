@@ -356,3 +356,5 @@ compose 与网关由主仓库负责，本仓库只保证端口、basePath 与健
   目录侧验签失败不再回退查 `auth.sessions`，`auth` schema 的读写方只有本服务。
 - 服务端会话（`auth.sessions`）仍然是本服务的一部分：登录写入、refresh 轮转、登出删除；
   它同时兜底存量不透明会话令牌（老实例登录后仍带着 Cookie 的用户不会掉线）。
+
+云端 MCP 通过现有 API 操作本服务；信息获取由 Agent 决定。业务读写默认各 180 RPM，验证 admin 组免业务限流，PAT 内省包含现时 groups，业务权限仍按 permissions 检查。连接池默认 32/16；计数为每进程固定窗口。
