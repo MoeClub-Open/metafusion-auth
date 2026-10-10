@@ -61,8 +61,8 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | GET/PUT/DELETE | `/api/developer/apps/{id}` | 登录 + 归属 | 详情 / 局部更新（名称、简介、主页、回调白名单、scope 白名单）/ 删除；不是自己的应用按 404 处理（管理员同样，没有例外） |
 | POST | `/api/developer/apps/{id}/rotate-secret` | 登录 + 归属 | 轮换该应用密钥，明文只返回一次，旧密钥立即失效 |
 
-限流：认证写入类接口按 IP 固定窗口限流，**速率与开关来自实例设置**（`auth_rate_limit_enabled` /
-`auth_rate_limit_per_minute`，默认 `true` / 15 次每分钟，即接线前的强制值）。`enabled=false` 时不计数直接放行；
+限流：业务接口按已验证账号计数，匿名按 IP；读写各自使用固定窗口，**速率与开关来自实例设置**（`auth_rate_limit_enabled` /
+`auth_rate_limit_per_minute`，默认 `true` / 180 次每分钟），已验证 admin 组不计数。`enabled=false` 时不计数直接放行；
 改设置立即生效（策略有 5 秒短缓存，写设置时作废）。超限返回 429 `rate_limited` 与 `Retry-After`（秒）。
 PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两个设置），见「个人访问令牌」。
 
@@ -140,9 +140,8 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
   创建后账号失去权限时，交集可能为空，此时令牌不再授权任何操作。
 - **内省不缓存、下游缓存 60 秒**：本服务每次内省都查库（自身即时），下游按 `token_hash` 缓存 60 秒，
   因此**端到端吊销最长 60 秒生效**——不要对用户声称立即失效。
-- **限流**：内省按来源 IP（600 次/分）与令牌哈希（60 次/分）双维度固定窗口；超限 `429 rate_limited`
-  与 `Retry-After: 60`。两个维度都**不读实例设置**：内省是读语义，`auth_rate_limit_*` 是认证写入类
-  端点的开关，为压注册洪水关掉写入限流不该连带松开下游的鉴权限流。
+- **限流**：内省按来源 IP（18000 次/分）与令牌哈希（180 次/分）双维度固定窗口；已验证 admin 组免此限流，超限 `429 rate_limited`
+  与 `Retry-After: 60`。两个维度都**不读实例设置**：关闭业务限流不会连带关闭内省限流。
 - **错误不区分原因**：不存在 / 已吊销 / 已过期 / 账号被封禁一律 `401 {"error":"invalid_token"}`
   （区分原因等于告诉探测者"这个令牌曾经有效"）；只有"读不动库"是 `503 introspection_unavailable`，
   下游必须把非 200 一律当作"不认这个令牌"（fail-closed）。
@@ -203,7 +202,7 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
 
 **下游验签/内省契约更新与迁移说明**（目录 / 互动 / 存储同步实施）：
 
-1. 验签保持 issuer/audience/JWKS 不变，`token_use=session` 才进入管理授权；
+1. 验签保持 issuer/audience/JWKS 不变，`token_use=session` 可进入管理授权；PAT 只在 `/api/admin/*`、`/api/users/*` 业务接口接受，按实际 permissions 检查；登录、会话、凭据与第三方授权接口仍要求站内会话。
    `oauth`/`id_token` 在管理路由上直接 401/403，只在纯身份读取面按 `scope` 裁剪展示（`sub` 恒可用，
    `username` 需 profile，`email` 需 email）。未知 `token_use` 取值一律拒收。
 2. 授权判定统一为 `HasPermission(permissions, code)`，空权限即无权。
