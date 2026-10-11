@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -19,6 +20,8 @@ import (
 )
 
 func main() {
+	migrate := flag.Bool("migrate", false, "explicitly migrate the auth schema and seed system definitions, then exit")
+	flag.Parse()
 	cfg := config.Load()
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required: configure a dedicated auth database identity")
@@ -31,8 +34,15 @@ func main() {
 		log.Fatalf("auth database connection failed: %v", err)
 	}
 	defer s.Close()
-	if err = s.Init(ctx); err != nil {
-		log.Fatalf("auth schema initialization failed: %v", err)
+	if *migrate {
+		if err = s.Migrate(ctx); err != nil {
+			log.Fatalf("auth migration failed: %v; see README username collision recovery before retrying", err)
+		}
+		log.Print("auth migration completed")
+		return
+	}
+	if err = s.CheckSchema(ctx); err != nil {
+		log.Fatalf("auth schema compatibility check failed: %v", err)
 	}
 
 	// 无状态访问令牌：AUTH_JWT_PRIVATE_KEY 是持久 RSA 私钥，**未配置即拒绝启动**——

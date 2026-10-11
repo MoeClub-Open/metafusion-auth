@@ -134,7 +134,7 @@ func patPrefixOf(plain string) string {
 
 // NormalizePATScopes 校验并归一创建请求里的 scopes：去空白、去重、保持请求顺序。
 //
-// 两条硬要求：
+// 签发要求：
 //  1. 每个码必须是格式合法的权限码，且**当前账号自己持有**（Can）——PAT 只能是权限的子集，
 //     不能当提权通道；超出本人权限的码直接拒绝（scope_not_granted: <code>），不静默取交集，
 //     否则用户会拿到一张比他要的更弱的令牌却毫不知情。
@@ -142,6 +142,8 @@ func patPrefixOf(plain string) string {
 //     Can 在 permissions 为空时按 role 兜底到 admin/editor，于是"仅身份"的令牌对管理员账号
 //     等于全权 PAT（下游不会有第二道判定来兜住它）。与其留一个会静默扩权的语义，
 //     不如让创建方显式写明需要哪些码。
+//  3. 通配 * 与任一 .manage 管理权限不可下发给新 PAT（forbidden_pat_scope）。
+//     该策略不追溯修改存量令牌，内省仍使用账号现时权限交集。
 //
 // 判定用的是调用方传入的 actor（HTTP 层来自访问令牌）：访问令牌里的 permissions 最多陈旧
 // 15 分钟，但那不是漏洞——内省每次都回表重算交集，账号权限被收回后令牌立刻就窄了。
@@ -158,6 +160,11 @@ func NormalizePATScopes(scopes []string, actor *User) ([]string, error) {
 		}
 		if !ValidPermissionCode(s) {
 			return nil, fmt.Errorf("invalid_scope: %s", s)
+		}
+		// 管理权限与通配权限仅供站内会话使用，不可委托给新机器令牌。
+		// 此处只限制签发；现有 PAT 的内省仍按原有权限交集计算。
+		if s == WildcardPermission || strings.HasSuffix(s, ".manage") {
+			return nil, fmt.Errorf("forbidden_pat_scope")
 		}
 		if seen[s] {
 			continue

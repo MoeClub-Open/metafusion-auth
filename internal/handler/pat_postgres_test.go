@@ -155,7 +155,7 @@ func TestPersonalAccessTokenHTTPAgainstPostgres(t *testing.T) {
 
 	// ── scopes 超出本人权限：400 + 稳定机器码（不静默取交集） ──
 	w = doJSON(t, r, http.MethodPost, "/api/auth/tokens", memberBearer, `{"name":"提权","scopes":["auth.users.manage"]}`)
-	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "scope_not_granted: auth.users.manage") {
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "forbidden_pat_scope") {
 		t.Fatalf("越权 scope 应 400 scope_not_granted: %d %s", w.Code, w.Body.String())
 	}
 

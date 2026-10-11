@@ -49,7 +49,7 @@ func systemGroups() []seedGroup {
 			code:  "community_admin",
 			names: map[string]string{"zh-CN": "论坛管理员", "zh-TW": "論壇管理員", "ja-JP": "フォーラム管理者", "en-US": "Community administrator"},
 			desc:  map[string]string{"zh-CN": "管理板块、置顶与帖子治理", "zh-TW": "管理版塊、置頂與貼文治理", "ja-JP": "板の管理、ピン留めと投稿の管理", "en-US": "Manage boards, pins and posts"},
-			perms: []string{"community.post.create", "community.post.moderate", "community.topic.pin", "community.board.manage", "community.report.review"}, order: 30,
+			perms: []string{"community.post.create", "community.post.moderate", "community.topic.pin", "community.board.manage", "community.report.review", "community.rate_limits.manage"}, order: 30,
 		},
 		{
 			code:  "community_moderator",

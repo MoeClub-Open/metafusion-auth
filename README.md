@@ -7,7 +7,7 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 ## 职责边界
 
 - **拥有**：`auth.users`、`auth.sessions`、`auth.personal_access_tokens`、`auth.oauth_clients`、
-  `auth.oauth_codes`、`auth.oauth_tokens`、`auth.oauth_audit` 与 RSA 密钥（令牌签发/注销/JWKS）。
+  `auth.oauth_codes`、`auth.oauth_tokens`、`auth.oauth_audit`、`auth.login_failures` 与 RSA 密钥（令牌签发/注销/JWKS）。
 - **对外**：签发短期 RS256 访问令牌（15 分钟）+ 服务端会话轮转（refresh），并提供 JWKS 供其他服务本地验签。
 - **不拥有**：实体元数据（目录服务）、文件（存储服务）、论坛与互动记录（互动服务）。
   其他服务只验签、不查本服务的库；本服务也不读它们的库。
@@ -65,6 +65,8 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 `auth_rate_limit_per_minute`，默认 `true` / 180 次每分钟），已验证 admin 组不计数。`enabled=false` 时不计数直接放行；
 改设置立即生效（策略有 5 秒短缓存，写设置时作废）。超限返回 429 `rate_limited` 与 `Retry-After`（秒）。
 PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两个设置），见「个人访问令牌」。
+
+登录失败保护另按账号标识与 IP 累计：15 分钟固定窗口内账号失败满 5 次、IP 失败满 20 次，后续请求返回 `429 login_blocked` 与 `Retry-After`；失败满 3 次起追加 200ms 至 2s 的递增延迟。计数保存于 `auth.login_failures`，所有副本使用数据库时钟和原子增量，重启不会清零；成功登录只清除账号计数，IP 计数随窗口恢复。标识在计数表中仅以维度化 SHA-256 保存。数据库查询、失败记账或成功清零失败均返回 `503 login_guard_unavailable`，不回退到进程内计数。
 
 实例设置（`GET/PUT /api/admin/settings`）当前只认 6 个键：`registration_enabled`、`invite_required`、
 `require_email_verification`、`auth_rate_limit_enabled`、`auth_rate_limit_per_minute`、
@@ -132,6 +134,7 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
 - **scopes 是权限码**（`catalog.entity.edit`、`storage.asset.upload` …），且必须是**账号自己持有**的码：
   超出本人权限的创建直接拒绝（`400 scope_not_granted: <code>`），不静默取交集——否则用户会拿到
   一张比他要的更弱的令牌却毫无察觉。
+- **新 PAT 不可委托管理权限**：请求包含 `*` 或任一以 `.manage` 结尾的权限码时返回 `400 forbidden_pat_scope`，管理员同样受此限制。该策略只限制新签发；现有 PAT 仍按原有权限交集内省，本次升级不撤销存量令牌。
 - **空 scopes 被拒绝**（`400 invalid_scope: empty`，缺失该字段、传 `[]` 或全空白都算）：创建时必须
   至少给一个权限码，避免签发没有实际用途的令牌。
 - **有效权限 = 账号现时权限 ∩ 该 PAT 的 scopes**，内省每次回表重算（账号权限被收回后，
@@ -256,16 +259,16 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
 账号表位于**独立的 `auth` schema**，与目录库同实例但不同 schema，且不跨 schema 建外键
 （目录侧只保留裸 UUID 引用）。因此切流**不需要数据搬运**，只需要把网关前缀指过来。
 
-- 表结构：`Init` 幂等建表（`CREATE ... IF NOT EXISTS`），
+- 表结构：显式运行 `auth-server -migrate` 幂等建表（`CREATE ... IF NOT EXISTS`），
   **线上 auth schema 的列形状是唯一基线**（见 `internal/store/schema_parity_test.go` 的冻结值）。
-- 第一方 OAuth 客户端（`metafusion-catalog` / `-forum` / `-resources`）的种子也在 `Init` 里，
+- 第一方 OAuth 客户端（`metafusion-catalog` / `-forum` / `-resources`）的种子也在显式迁移里，
   与建表同一处：这三个客户端原先由目录服务在启动时写入，账号拆出后随 schema 一起搬进来，
   `ON CONFLICT DO NOTHING` 保护后台改过的配置。目录服务现在**不再创建、也不再写入任何 auth 对象**。
 - 该服务**没有版本化迁移**：建表语句即当前终态，改动需同时更新冻结用例。
 - 全部账号与下游实例升级到权限码版本后，再执行 `sql/drop-user-role.sql` 删除旧库中的 `auth.users.role`。服务启动期间不自动删列，避免滚动发布中旧实例读取失败。
-- 本轮新增的列与表都以 `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` 写在 `Init` 里
+- 新增的列与表都以 `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` 写在迁移基线里
   （`oauth_clients.scopes`、`oauth_clients.disabled`、`oauth_tokens.jti`、`auth.oauth_audit`、
-  `auth.personal_access_tokens`），老库启动即补齐，不需要手工迁移；冻结值同步在
+  `auth.personal_access_tokens`、`auth.login_failures`），老库须先显式执行 `-migrate` 补齐；冻结值同步在
   `schema_parity_test.go`、`schema_lifecycle_parity_test.go` 与 `pat_schema_parity_test.go`。
   追加只加在末尾：既有语句一字不改（幂等 DDL 就是本服务的"up-only 追加"）。
 
@@ -285,7 +288,16 @@ FROM auth.users u JOIN auth.users e
   ON u.id <> e.id AND e.email <> '' AND lower(u.username) = lower(e.email);
 ```
 
-任一查询有结果，先核实归属并由管理员明确处理标识冲突，再升级。启动检查发现冲突会返回 `username_case_conflict` 并停止，不自动重命名、合并或删除账号。无冲突时启动幂等追加唯一索引；大表建议安排维护窗口以免建索引阻塞写入。先做预检、解决冲突并验证新实例就绪，再替换旧实例。尚未通过预检时保留旧服务，避免登录停机。
+任一查询有结果，先核实归属并由管理员明确处理标识冲突，再升级。显式迁移发现大小写冲突返回 `username_case_conflict`，DDL 与种子事务全部回滚；不自动重命名、合并或删除账号。HTTP 启动只运行 `CheckSchema` 读取现有列及用户名唯一索引，不执行 DDL、种子或权限回填；不兼容时提示先运行 `auth-server -migrate`。大表建索引需安排维护窗口。迁移及就绪验证成功后再替换旧实例，冲突未处理时保留旧服务。
+
+经管理员核实后，按账号 UUID 修复其中一个标识；将以下占位值替换为已确认的账号 ID 和未被使用的新用户名，再显式迁移。涉及邮箱交叉重叠时，另核实并修改对应账号的邮箱标识：
+
+```sql
+BEGIN;
+SELECT id, username, email FROM auth.users WHERE id = '待核实的账号UUID'::uuid FOR UPDATE;
+UPDATE auth.users SET username = '已确认的新用户名' WHERE id = '待核实的账号UUID'::uuid;
+COMMIT;
+```
 
 回滚应用不要求删除索引，旧版仍能读写合法用户名；若确需恢复大小写区分的注册规则，先停用新版实例，再由管理员显式执行 `DROP INDEX IF EXISTS auth.users_username_lower_key;`。该操作不修改账号数据，但会重新允许大小写重复，因此重新升级前必须再做预检。
 
@@ -306,8 +318,11 @@ FROM auth.users u JOIN auth.users e
 
 独立 Compose 部署先将 `.env.example` 复制为 `.env`，设置 `AUTH_DATABASE_URL` 与持久的 `AUTH_JWT_PRIVATE_KEY`。编排将 `AUTH_DATABASE_URL` 注入容器的 `DATABASE_URL`。
 
+首次启动及升级均须先显式迁移，再启动 HTTP。迁移命令只需要 `DATABASE_URL`，无需 JWT 私钥；生产应使用拥有 auth DDL 权限的迁移身份，HTTP 使用 CRUD 运行身份。主仓部署编排使用独立 `AUTH_MIGRATION_DATABASE_URL` 接线，具体授权与部署流程以主仓手册为准。现有镜像命令为 `/app/auth-server`，因此独立 Compose 的迁移可运行 `docker compose run --rm --no-deps auth /app/auth-server -migrate`，并为该一次性命令注入迁移身份。
+
 ```bash
-go run cmd/server/main.go
+go run ./cmd/server -migrate
+go run ./cmd/server
 go test ./... && go vet ./...
 
 # 真实库回归（可选）：库名必须含 _test；两个测试包都会重建测试数据，需串行

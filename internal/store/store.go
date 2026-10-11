@@ -67,7 +67,7 @@ type Store struct {
 }
 
 // schema 是 auth schema 的唯一来源（主仓库曾经的 schema.sql 已随迁移基线收敛删除），
-// 幂等；账号服务自己保证首次启动即可用，不依赖目录服务的初始化顺序。
+// 幂等；仅由显式迁移执行，HTTP 启动通过 CheckSchema 做只读检查。
 const schema = `
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE TABLE IF NOT EXISTS auth.users (
@@ -170,6 +170,13 @@ CREATE TABLE IF NOT EXISTS auth.personal_access_tokens (
 );
 -- 列表与配额按 user_id 统计（每账号最多 10 张未吊销令牌），单独建索引避免全表扫。
 CREATE INDEX IF NOT EXISTS personal_access_tokens_user_idx ON auth.personal_access_tokens(user_id);
+-- 登录失败防护由 auth 持有；所有副本共用计数，标识只保存维度化 SHA-256。
+CREATE TABLE IF NOT EXISTS auth.login_failures (
+ dimension text NOT NULL CHECK (dimension IN ('account','ip')),
+ key_hash text NOT NULL, failures int NOT NULL CHECK (failures > 0),
+ expires_at timestamptz NOT NULL, PRIMARY KEY (dimension,key_hash)
+);
+CREATE INDEX IF NOT EXISTS login_failures_expiry_idx ON auth.login_failures(expires_at);
 -- Preserve original spelling; reject an upgrade with legacy collisions rather than merging accounts.
 DO $$
 BEGIN
@@ -212,19 +219,25 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 
 func (s *Store) Close() error { return s.DB.Close() }
 
-func (s *Store) Init(ctx context.Context) error {
-	if _, err := s.DB.ExecContext(ctx, schema); err != nil {
-		return err
-	}
-	// 审计表不在 auth schema 里：它是四个服务共用的平台表（读取面见
-	// docs/architecture/audit-log.md §5），建表语句的唯一来源在 internal/audit。
-	if _, err := s.DB.ExecContext(ctx, audit.Schema); err != nil {
-		return err
-	}
-	if _, err := s.DB.ExecContext(ctx, seedClients); err != nil {
-		return err
-	}
-	return s.seedGroups(ctx)
+// Init 保留测试与嵌入调用兼容；生产只由 auth-server -migrate 调用 Migrate。
+func (s *Store) Init(ctx context.Context) error { return s.Migrate(ctx) }
+
+// Migrate 显式、原子地升级本服务 schema 并补齐种子。用户名冲突时全部回滚，
+// 不选择、合并或删除任何存量账号；管理员需按 README 先修复冲突再重试。
+func (s *Store) Migrate(ctx context.Context) error {
+	return s.write(ctx, func(tx *sql.Tx) error {
+		for _, ddl := range []string{schema, audit.Schema, seedClients} {
+			if _, err := tx.ExecContext(ctx, ddl); err != nil {
+				return err
+			}
+		}
+		for _, g := range systemGroups() {
+			if err := seedSystemGroup(ctx, tx, g); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // Authenticate 是账号校验的唯一入口：无状态 RS256 验签优先，失败回退查库。

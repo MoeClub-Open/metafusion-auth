@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -13,11 +14,12 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/MoeclubM/metafusion-auth/internal/audit"
+	"github.com/MoeclubM/metafusion-auth/internal/store"
 )
 
 // 登录失败凭据防护。层次关系是这次改动的前提，改这里之前先读完这段：
 //
-//	网关 nginx limit_req（/api/auth/ 5r/s burst=10）与账号服务的 rateLimiter（默认 15/分钟）
+//	网关 nginx limit_req 与账号服务的 rateLimiter（默认 180/分钟）
 //	  都是「请求速率」层：只按来源 IP、不看请求内容，防的是接口被刷。
 //	本层是「失败凭据」层：按账号标识 + 来源 IP 两个维度分别累计登录失败次数，
 //	  防的是"请求速率完全合法、但凭据一直错"的试口令。
@@ -36,9 +38,9 @@ import (
 //
 //	让每次猜测都变贵。只有在已有失败记录时才产生，无失败史的登录完全不被拖慢。
 //
-// 计数只放进程内存：登录路径不额外写库——失败次数落库等于给每次失败登录加一次写，
-// 反而成了新的放大面。代价是进程重启清零、多副本不共享；对"基本防护"够用，
-// 真要多副本共享再换成 Redis 计数。
+// 生产计数写入 auth.login_failures，由所有副本共享，窗口采用数据库时钟。
+// 查询或记账失败返回 503 login_guard_unavailable，不绕过失败凭据防护。
+// 进程内实现仅用于可控时钟单元测试；不作为数据库故障时的回退。
 const (
 	loginGuardWindow            = 15 * time.Minute
 	loginGuardAccountMaxFailure = 5
@@ -58,18 +60,100 @@ type loginBucket struct {
 	lastSeen time.Time
 }
 
-// loginGuard 是登录失败计数器。按 Register 建一份，状态随引擎存活；
-// 不放进 Handler：它不用 store，也不该被多个引擎共享。
+// loginGuard 持有失败判定策略；生产状态在共享存储中，内存字段供假时钟测试。
 type loginGuard struct {
-	window     time.Duration
-	accountMax int
-	ipMax      int
+	persistence loginFailureStore
+	window      time.Duration
+	accountMax  int
+	ipMax       int
 	// now 可被用例换成假时钟，窗口过期与递增延迟才能被确定性地断言。
 	now func() time.Time
 
 	mu       sync.Mutex
 	accounts map[string]*loginBucket
 	ips      map[string]*loginBucket
+}
+
+type loginFailureStore interface {
+	LoginFailureBuckets(context.Context, []string, string) ([]store.LoginFailureBucket, error)
+	RecordLoginFailure(context.Context, []string, string, time.Duration) error
+	ClearLoginFailures(context.Context, []string) error
+}
+
+type loginGuardAttempt struct {
+	guard *loginGuard
+	keys  []string
+	ip    string
+}
+
+const loginAttemptContextKey = "auth.login_attempt"
+
+func (g *loginGuard) checkContext(ctx context.Context, keys []string, ip string) (bool, time.Duration, time.Duration, error) {
+	if g.persistence == nil {
+		blocked, retry, delay := g.check(keys, ip)
+		return blocked, retry, delay, nil
+	}
+	buckets, err := g.persistence.LoginFailureBuckets(ctx, keys, ip)
+	if err != nil {
+		return false, 0, 0, err
+	}
+	blocked, retry, worst := false, time.Duration(0), 0
+	for _, bucket := range buckets {
+		limit := g.accountMax
+		if bucket.Dimension == "ip" {
+			limit = g.ipMax
+		}
+		if bucket.Failures >= limit {
+			blocked = true
+			if bucket.RetryAfter > retry {
+				retry = bucket.RetryAfter
+			}
+		}
+		if bucket.Failures > worst {
+			worst = bucket.Failures
+		}
+	}
+	if blocked {
+		if retry < time.Second {
+			retry = time.Second
+		}
+		return true, retry, 0, nil
+	}
+	return false, 0, loginGuardDelay(worst), nil
+}
+
+func loginGuardUnavailable(c *gin.Context) {
+	audit.Fail(c, "login_guard_unavailable")
+	c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "login_guard_unavailable"})
+}
+
+// completeLoginAttempt records before the handler sends its response, so a
+// database write failure can still return 503 without leaking a login token.
+func completeLoginAttempt(c *gin.Context, loginErr error) bool {
+	value, ok := c.Get(loginAttemptContextKey)
+	if !ok {
+		return true // invalid/missing identifiers are handled by payload validation
+	}
+	attempt := value.(loginGuardAttempt)
+	var err error
+	if loginErr == nil {
+		if attempt.guard.persistence != nil {
+			err = attempt.guard.persistence.ClearLoginFailures(c.Request.Context(), attempt.keys)
+		} else {
+			attempt.guard.recordSuccess(attempt.keys)
+		}
+	} else if loginErr.Error() == "invalid_credentials" {
+		if attempt.guard.persistence != nil {
+			err = attempt.guard.persistence.RecordLoginFailure(c.Request.Context(), attempt.keys, attempt.ip, attempt.guard.window)
+		} else {
+			attempt.guard.recordFailure(attempt.keys, attempt.ip)
+		}
+	}
+	if err != nil {
+		loginGuardUnavailable(c)
+		return false
+	}
+	return true
 }
 
 func newLoginGuard() *loginGuard {
@@ -247,7 +331,11 @@ func (h *Handler) loginGuardMiddleware() gin.HandlerFunc {
 	// 与 rateLimiter 的缺省策略同一口径——缺省仍按生产阈值生效，不会静默变成不设防。
 	factory := h.loginGuardFactory
 	if factory == nil {
-		factory = newLoginGuard
+		factory = func() *loginGuard {
+			guard := newLoginGuard()
+			guard.persistence = h.store
+			return guard
+		}
 	}
 	guard := factory()
 	return func(c *gin.Context) {
@@ -265,7 +353,11 @@ func (h *Handler) loginGuardMiddleware() gin.HandlerFunc {
 			return
 		}
 		ip := c.ClientIP()
-		blocked, retryAfter, delay := guard.check(keys, ip)
+		blocked, retryAfter, delay, err := guard.checkContext(c.Request.Context(), keys, ip)
+		if err != nil {
+			loginGuardUnavailable(c)
+			return
+		}
 		if blocked {
 			c.Header("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
 			audit.Fail(c, loginGuardErrorCode)
@@ -278,16 +370,8 @@ func (h *Handler) loginGuardMiddleware() gin.HandlerFunc {
 			// 客户端已断开，不必再回响应（写了也没人收）。
 			return
 		}
+		c.Set(loginAttemptContextKey, loginGuardAttempt{guard: guard, keys: keys, ip: ip})
 		c.Next()
-		switch status := c.Writer.Status(); {
-		case status >= 200 && status < 300:
-			guard.recordSuccess(keys)
-		case status == http.StatusUnauthorized:
-			guard.recordFailure(keys, ip)
-			// 403（account_banned）不计入失败：那种请求的口令是对的，不是猜口令的信号，
-			// 计进去只会让"账号已停用"的提示被 login_blocked 盖掉。
-			// 400（载荷不合法）同样不计：见 readLoginPayload 的说明。
-		}
 	}
 }
 

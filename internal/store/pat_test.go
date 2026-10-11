@@ -212,7 +212,7 @@ func TestPersonalAccessTokensAgainstPostgres(t *testing.T) {
 		label, name, wantErr string
 		scopes               []string
 	}{
-		{"提权尝试", "提权尝试", "scope_not_granted: auth.users.manage", []string{"auth.users.manage"}},
+		{"管理权限不可委托", "管理权限", "forbidden_pat_scope", []string{"auth.users.manage"}},
 		{"格式非法", "格式非法", "invalid_scope: read", []string{"read"}},
 		{"空名", "", "invalid_token_name", []string{"catalog.entity.edit"}},
 	} {

@@ -42,8 +42,7 @@ type Handler struct {
 	// rateLimitPolicy 覆盖"是否限流、每分钟几次"的来源：生产为 nil（走 store 的实例设置），
 	// 用例据此在不建库的前提下断言开关与速率。
 	rateLimitPolicy func(context.Context) (bool, int)
-	// loginGuardFactory 生产登录失败保护计数器：生产为 newLoginGuard（每个 Register 一份，
-	// 状态随引擎存活），用例据此换成假时钟实例来断言窗口与递增延迟。
+	// loginGuardFactory 用例可替换成假时钟实例；生产使用 PostgreSQL 共享失败计数。
 	loginGuardFactory func() *loginGuard
 	// audit 是审计写入器（写跨服务共用的 audit.audit_log，见 internal/audit 与
 	// docs/architecture/audit-log.md）。为 nil 时审计中间件退化为空操作。
@@ -51,7 +50,7 @@ type Handler struct {
 }
 
 func New(s *store.Store) *Handler {
-	return &Handler{store: s, oauth: s, developer: s, tokens: s, loginGuardFactory: newLoginGuard,
+	return &Handler{store: s, oauth: s, developer: s, tokens: s,
 		audit: audit.NewRecorder(s.DB, audit.ServiceName)}
 }
 
@@ -119,6 +118,10 @@ func (h *Handler) registerAuth(api *gin.RouterGroup) {
 			return
 		}
 		token, u, err := s.Login(c.Request.Context(), in.Username, in.Password)
+		// Persist the outcome before sending any cookie/token/error response.
+		if !completeLoginAttempt(c, err) {
+			return
+		}
 		if err == nil {
 			setSessionCookie(c, token, 86400)
 			// 登录成功后操作者就是登录者本人；用会话令牌继续操作，凭据类型 session。
