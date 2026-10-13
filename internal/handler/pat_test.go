@@ -112,7 +112,7 @@ func TestTokenCreateValidatesScopesAgainstActor(t *testing.T) {
 
 	// 超出本人权限、格式非法、有效期非法：都是 400 + 稳定机器码，且一个都不该落库。
 	for _, tc := range []struct{ label, body, wantCode string }{
-		{"超出本人权限", `{"name":"提权","scopes":["catalog.import.submit"]}`, "scope_not_granted: catalog.import.submit"},
+		{"超出本人权限", `{"name":"提权","scopes":["catalog.relation.edit"]}`, "scope_not_granted: catalog.relation.edit"},
 		{"管理权限不可委托", `{"name":"管理","scopes":["auth.users.manage"]}`, "forbidden_pat_scope"},
 		{"通配权限不可委托", `{"name":"全权","scopes":["*"]}`, "forbidden_pat_scope"},
 		{"格式非法", `{"name":"词表","scopes":["read","write"]}`, "invalid_scope: read"},

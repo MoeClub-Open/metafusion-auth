@@ -37,13 +37,13 @@ func systemGroups() []seedGroup {
 			code:  "catalog_admin",
 			names: map[string]string{"zh-CN": "目录管理员", "zh-TW": "目錄管理員", "ja-JP": "カタログ管理者", "en-US": "Catalog administrator"},
 			desc:  map[string]string{"zh-CN": "管理动态定义、审核与生命周期、货架与外部库", "zh-TW": "管理動態定義、審核與生命週期、貨架與外部庫", "ja-JP": "動的定義、審査とライフサイクル、シェルフ、外部データベースの管理", "en-US": "Manage definitions, review/lifecycle, shelves and external databases"},
-			perms: []string{"catalog.entity.edit", "catalog.relation.edit", "catalog.definitions.manage", "catalog.lifecycle.manage", "catalog.import.submit", "catalog.shelves.manage"}, order: 10,
+			perms: []string{"catalog.entity.edit", "catalog.relation.edit", "catalog.definitions.manage", "catalog.lifecycle.manage", "catalog.shelves.manage"}, order: 10,
 		},
 		{
 			code:  "catalog_editor",
 			names: map[string]string{"zh-CN": "目录编辑", "zh-TW": "目錄編輯", "ja-JP": "カタログ編集者", "en-US": "Catalog editor"},
 			desc:  map[string]string{"zh-CN": "创建与编辑实体、维护关系、提交外部导入", "zh-TW": "建立與編輯實體、維護關係、提交外部匯入", "ja-JP": "実体の作成と編集、関係の管理、外部取り込みの投入", "en-US": "Create and edit entities, maintain relations, submit imports"},
-			perms: []string{"catalog.entity.edit", "catalog.relation.edit", "catalog.import.submit"}, order: 20,
+			perms: []string{"catalog.entity.edit", "catalog.relation.edit"}, order: 20,
 		},
 		{
 			code:  "community_admin",
