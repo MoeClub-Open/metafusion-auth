@@ -49,7 +49,6 @@ func PermissionCatalog() []PermissionCode {
 		{Code: "catalog.relation.edit", Service: "catalog", Names: map[string]string{"zh-CN": "编辑实体关系", "zh-TW": "編輯實體關係", "ja-JP": "関係の編集", "en-US": "Edit entity relations"}},
 		{Code: "catalog.definitions.manage", Service: "catalog", Names: map[string]string{"zh-CN": "管理动态定义", "zh-TW": "管理動態定義", "ja-JP": "動的定義の管理", "en-US": "Manage dynamic definitions"}},
 		{Code: "catalog.lifecycle.manage", Service: "catalog", Names: map[string]string{"zh-CN": "审核与生命周期", "zh-TW": "審核與生命週期", "ja-JP": "審査とライフサイクル", "en-US": "Review and lifecycle"}},
-		{Code: "catalog.import.submit", Service: "catalog", Names: map[string]string{"zh-CN": "提交外部导入", "zh-TW": "提交外部匯入", "ja-JP": "外部取り込みの投入", "en-US": "Submit external imports"}},
 		{Code: "catalog.shelves.manage", Service: "catalog", Names: map[string]string{"zh-CN": "管理货架", "zh-TW": "管理貨架", "ja-JP": "シェルフ管理", "en-US": "Manage shelves"}},
 		{Code: "community.post.create", Service: "community", Names: map[string]string{"zh-CN": "发帖", "zh-TW": "發帖", "ja-JP": "投稿", "en-US": "Create posts"}},
 		{Code: "community.post.moderate", Service: "community", Names: map[string]string{"zh-CN": "管理帖子", "zh-TW": "管理貼文", "ja-JP": "投稿の管理", "en-US": "Moderate posts"}},
