@@ -581,11 +581,18 @@ func tokenFromRequest(c *gin.Context) string {
 func setSessionCookie(c *gin.Context, token string, maxAge int) {
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("mf_session", token, maxAge, "/", "", isSecure(c), true)
+	// 可读的会话提示（与主站 src/lib/sessionHint.ts 同名同语义）：只表示「可能已登录」，
+	// 让 /login 等页面在没有会话时不再请求注定 401 的 /api/auth/me。不含任何凭据。
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(sessionHintCookie, "1", maxAge, "/", "", isSecure(c), false)
 }
+
+const sessionHintCookie = "mf_has_session"
 
 func clearSessionCookie(c *gin.Context) {
 	// 清 Cookie 的 Secure 必须与写入时一致，否则 HTTPS 下清不掉。
 	c.SetCookie("mf_session", "", -1, "/", "", isSecure(c), true)
+	c.SetCookie(sessionHintCookie, "", -1, "/", "", isSecure(c), false)
 }
 
 func isSecure(c *gin.Context) bool {
