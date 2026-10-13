@@ -10,6 +10,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { redirectToLogin } from "./api";
 import { fetchMe, type MeUser } from "./endpoints";
 import { describeApiError } from "./errors";
+import { clearSessionHint, hasSessionHint } from "./sessionHint";
 
 export type SessionStatus = "loading" | "ready" | "error";
 
@@ -34,6 +35,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let alive = true;
     setStatus("loading");
+    // 没有会话提示 = 未登录：与 401 同样处置，但不发请求（/login 页不再白拿一个 401）。
+    if (!hasSessionHint()) {
+      setUser(null);
+      setError(null);
+      setStatus("ready");
+      redirectToLogin();
+      return;
+    }
     fetchMe()
       .then((me) => {
         if (!alive) return;
@@ -45,6 +54,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (!alive) return;
         // 探活请求自己处理 401：fetchMe 传 redirectOn401=false，这里才决定跳不跳。
         if (typeof err === "object" && err !== null && (err as { status?: number }).status === 401) {
+          clearSessionHint();
           setStatus("ready");
           setUser(null);
           redirectToLogin();
