@@ -236,7 +236,8 @@ func (s *Store) Migrate(ctx context.Context) error {
 				return err
 			}
 		}
-		return nil
+		// 种子回填只加不减：已删除的码必须在这里从存量组/PAT 显式剥离。
+		return stripRetiredPermissions(ctx, tx)
 	})
 }
 
