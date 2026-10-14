@@ -42,7 +42,7 @@ func systemGroups() []seedGroup {
 		{
 			code:  "catalog_editor",
 			names: map[string]string{"zh-CN": "目录编辑", "zh-TW": "目錄編輯", "ja-JP": "カタログ編集者", "en-US": "Catalog editor"},
-			desc:  map[string]string{"zh-CN": "创建与编辑实体、维护关系、提交外部导入", "zh-TW": "建立與編輯實體、維護關係、提交外部匯入", "ja-JP": "実体の作成と編集、関係の管理、外部取り込みの投入", "en-US": "Create and edit entities, maintain relations, submit imports"},
+			desc:  map[string]string{"zh-CN": "创建与编辑实体、维护关系", "zh-TW": "建立與編輯實體、維護關係", "ja-JP": "実体の作成と編集、関係の管理", "en-US": "Create and edit entities, maintain relations"},
 			perms: []string{"catalog.entity.edit", "catalog.relation.edit"}, order: 20,
 		},
 		{
