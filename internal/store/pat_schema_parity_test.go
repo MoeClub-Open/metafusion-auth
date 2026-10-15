@@ -16,6 +16,8 @@ var frozenPersonalAccessTokenDefs = map[string]string{
 	"last_used_at": "last_used_at timestamptz",
 	"created_at":   "created_at timestamptz not null default now()",
 	"revoked_at":   "revoked_at timestamptz",
+	"purpose":      "purpose text not null default 'personal' check (purpose in ('personal','mcp'))",
+	"deleted_at":   "deleted_at timestamptz",
 }
 
 func TestSchemaMatchesPersonalAccessTokenShape(t *testing.T) {

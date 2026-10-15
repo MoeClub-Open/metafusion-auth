@@ -166,8 +166,15 @@ CREATE TABLE IF NOT EXISTS auth.personal_access_tokens (
  id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
  name text NOT NULL, token_hash text NOT NULL UNIQUE, token_prefix text NOT NULL,
  scopes text[] NOT NULL DEFAULT '{}', expires_at timestamptz, last_used_at timestamptz,
- created_at timestamptz NOT NULL DEFAULT now(), revoked_at timestamptz
+ created_at timestamptz NOT NULL DEFAULT now(), revoked_at timestamptz,
+ purpose text NOT NULL DEFAULT 'personal' CHECK (purpose IN ('personal','mcp')),
+ deleted_at timestamptz
 );
+ALTER TABLE auth.personal_access_tokens ADD COLUMN IF NOT EXISTS purpose text NOT NULL DEFAULT 'personal' CHECK (purpose IN ('personal','mcp'));
+ALTER TABLE auth.personal_access_tokens ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+-- mcp.connect has always denoted a delegated MCP connection, never a business permission.
+-- Preserve its credential/hash and classify legacy connections without guessing from their names.
+UPDATE auth.personal_access_tokens SET purpose='mcp' WHERE purpose='personal' AND scopes @> ARRAY['mcp.connect']::text[];
 -- 列表与配额按 user_id 统计（每账号最多 10 张未吊销令牌），单独建索引避免全表扫。
 CREATE INDEX IF NOT EXISTS personal_access_tokens_user_idx ON auth.personal_access_tokens(user_id);
 -- 登录失败防护由 auth 持有；所有副本共用计数，标识只保存维度化 SHA-256。

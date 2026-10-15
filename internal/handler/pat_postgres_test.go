@@ -160,13 +160,13 @@ func TestPersonalAccessTokenHTTPAgainstPostgres(t *testing.T) {
 	}
 
 	// ── 归属隔离：吊销别人的令牌按"不存在"处理 ──
-	if w := doJSON(t, r, http.MethodDelete, "/api/auth/tokens/"+created.Item.ID, otherBearer, ""); w.Code != http.StatusNotFound {
+	if w := doJSON(t, r, http.MethodPost, "/api/auth/tokens/"+created.Item.ID+"/revoke", otherBearer, ""); w.Code != http.StatusNotFound {
 		t.Fatalf("不能吊销别人的令牌: %d %s", w.Code, w.Body.String())
 	}
 
 	// ── 吊销：幂等，之后内省 401 ──
 	for i := 0; i < 2; i++ {
-		w := doJSON(t, r, http.MethodDelete, "/api/auth/tokens/"+created.Item.ID, memberBearer, "")
+		w := doJSON(t, r, http.MethodPost, "/api/auth/tokens/"+created.Item.ID+"/revoke", memberBearer, "")
 		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "true") {
 			t.Fatalf("第 %d 次吊销应 200 ok: %d %s", i+1, w.Code, w.Body.String())
 		}

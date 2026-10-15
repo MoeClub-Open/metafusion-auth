@@ -320,7 +320,7 @@ func TestAuditLogCoversAccountMutationsAgainstPostgres(t *testing.T) {
 		t.Fatalf("创建 PAT 的响应应含明文与 id：%s", w.Body.String())
 	}
 	revokeRID := auditRequestIDPrefix + "revoke-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
-	if w = auditRequest(t, r, http.MethodDelete, "/api/auth/tokens/"+patBody.Item.ID, patBearer, "", revokeRID); w.Code != http.StatusOK {
+	if w = auditRequest(t, r, http.MethodPost, "/api/auth/tokens/"+patBody.Item.ID+"/revoke", patBearer, "", revokeRID); w.Code != http.StatusOK {
 		t.Fatalf("吊销 PAT 应 200，实际 %d / %s", w.Code, w.Body.String())
 	}
 	if err := recorder.Flush(ctx); err != nil {

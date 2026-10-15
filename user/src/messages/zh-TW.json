@@ -93,7 +93,7 @@
   "auth.error.invalid_token_name": "權杖名稱不合法（1–64 個字元）。",
   "auth.error.scope_not_granted": "所選權限超出你自己持有的權限，無法授予。",
   "auth.error.token_not_found": "該權杖不存在或不屬於你，清單可能已過期，請重新整理後再試。",
-  "auth.error.token_limit_reached": "未撤銷的權杖已達 10 個上限，請先撤銷不再使用的權杖。",
+  "auth.error.token_limit_reached": "有效憑證數量已達上限，請先撤銷或刪除不再使用的憑證。",
   "auth.error.invalid_payload": "請求格式錯誤，請檢查輸入內容",
   "auth.error.invalid_old_password": "目前密碼錯誤",
   "auth.error.setup_complete": "系統已完成初始化設定",

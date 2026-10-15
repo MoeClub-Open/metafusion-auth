@@ -93,7 +93,7 @@
   "auth.error.invalid_token_name": "トークン名が不正です（1〜64 文字）。",
   "auth.error.scope_not_granted": "選択した権限が自分自身の権限を超えているため付与できません。",
   "auth.error.token_not_found": "そのトークンは存在しないか、あなたのものではありません。一覧を再読み込みしてください。",
-  "auth.error.token_limit_reached": "未失効のトークンが上限の 10 個に達しています。不要なトークンを先に失効させてください。",
+  "auth.error.token_limit_reached": "有効な認証情報が上限に達しました。不要な認証情報を失効または削除してください。",
   "auth.error.invalid_payload": "リクエストの形式が不正です。入力を確認してください。",
   "auth.error.invalid_old_password": "現在のパスワードが正しくありません。",
   "auth.error.setup_complete": "システムの初期設定は完了済みです。",

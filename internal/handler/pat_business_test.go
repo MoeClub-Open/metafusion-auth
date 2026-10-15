@@ -35,4 +35,11 @@ func TestPATBusinessIdentityDoesNotBecomeSessionOrExpandScopes(t *testing.T) {
 			t.Fatalf("%s: got %d want %d", tc.path, w.Code, tc.code)
 		}
 	}
+	request := httptest.NewRequest(http.MethodGet, "/api/admin/allowed", nil)
+	request.AddCookie(&http.Cookie{Name: "mf_session", Value: testPATPlain})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, request)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("PAT in a session cookie was accepted: %d", w.Code)
+	}
 }

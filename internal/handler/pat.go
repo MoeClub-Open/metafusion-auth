@@ -32,8 +32,17 @@ type patStore interface {
 	IntrospectPersonalAccessToken(ctx context.Context, token string) (*store.PATPrincipal, error)
 }
 
+type managedTokenStore interface {
+	UpdatePersonalAccessToken(context.Context, *store.User, string, store.AccessTokenUpdate) error
+	DeletePersonalAccessToken(context.Context, string, string) error
+	CreateMCPToken(context.Context, *store.User, string, []string) (store.PersonalAccessToken, string, error)
+	UpdateMCPToken(context.Context, *store.User, string, []string) error
+	RevokeMCPToken(context.Context, string, string) error
+}
+
 // 生产实现必须是 *store.Store：接口与实现一旦对不上，这里先编译失败。
 var _ patStore = (*store.Store)(nil)
+var _ managedTokenStore = (*store.Store)(nil)
 
 // personalTokens 返回 PAT 端点用的存储实现：测试注入的替身优先，否则回落真实 store。
 func (h *Handler) personalTokens() patStore {
@@ -61,7 +70,15 @@ const (
 
 func (h *Handler) registerTokens(api *gin.RouterGroup) {
 	s := h.personalTokens()
-	authed := requireUser()
+	authed := func(c *gin.Context) {
+		u := currentUser(c)
+		if u == nil || u.IsThirdParty() || u.TokenUse == "pat" {
+			audit.Fail(c, "authentication_required")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication_required"})
+			return
+		}
+		c.Next()
+	}
 	byIP := newPATBuckets(patIntrospectPerIPPerMinute)
 	byToken := newPATBuckets(patIntrospectPerTokenPerMinute)
 
@@ -105,9 +122,105 @@ func (h *Handler) registerTokens(api *gin.RouterGroup) {
 	})
 
 	// 吊销：只写 revoked_at，幂等（已经吊销过再删仍然 200）。生效窗口见内省注释。
-	api.DELETE("/auth/tokens/:id", authed, func(c *gin.Context) {
+	api.POST("/auth/tokens/:id/revoke", authed, func(c *gin.Context) {
 		err := s.RevokePersonalAccessToken(c.Request.Context(), currentUser(c).ID, c.Param("id"))
 		audit.Describe(c, audit.Detail{TargetType: "pat", TargetID: c.Param("id")})
+		respond(c, gin.H{"ok": true}, err)
+	})
+
+	manager := func(c *gin.Context) managedTokenStore {
+		m, ok := s.(managedTokenStore)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "token_management_unavailable"})
+			return nil
+		}
+		return m
+	}
+	api.PATCH("/auth/tokens/:id", authed, func(c *gin.Context) {
+		var in store.AccessTokenUpdate
+		if !body(c, &in) {
+			return
+		}
+		m := manager(c)
+		if m == nil {
+			return
+		}
+		err := m.UpdatePersonalAccessToken(c.Request.Context(), currentUser(c), c.Param("id"), in)
+		audit.Describe(c, audit.Detail{TargetType: "pat", TargetID: c.Param("id"), Changes: map[string]any{"name": in.Name, "scopes": in.Scopes}})
+		respond(c, gin.H{"ok": true}, err)
+	})
+	api.DELETE("/auth/tokens/:id", authed, func(c *gin.Context) {
+		m := manager(c)
+		if m == nil {
+			return
+		}
+		err := m.DeletePersonalAccessToken(c.Request.Context(), currentUser(c).ID, c.Param("id"))
+		audit.Describe(c, audit.Detail{TargetType: "pat", TargetID: c.Param("id")})
+		respond(c, gin.H{"ok": true}, err)
+	})
+	api.POST("/auth/mcp-tokens", authed, func(c *gin.Context) {
+		var in struct {
+			Name   string   `json:"name"`
+			Scopes []string `json:"scopes"`
+		}
+		if !body(c, &in) {
+			return
+		}
+		m := manager(c)
+		if m == nil {
+			return
+		}
+		item, token, err := m.CreateMCPToken(c.Request.Context(), currentUser(c), in.Name, in.Scopes)
+		if err != nil {
+			respond(c, nil, err)
+			return
+		}
+		audit.Describe(c, audit.Detail{TargetType: "mcp_credential", TargetID: item.ID, Changes: map[string]any{"name": item.Name, "scopes": item.Scopes}})
+		c.JSON(http.StatusCreated, gin.H{"item": item, "token": token})
+	})
+	api.PATCH("/auth/mcp-tokens/:id", authed, func(c *gin.Context) {
+		var in struct {
+			Scopes []string `json:"scopes"`
+		}
+		if !body(c, &in) {
+			return
+		}
+		m := manager(c)
+		if m == nil {
+			return
+		}
+		err := m.UpdateMCPToken(c.Request.Context(), currentUser(c), c.Param("id"), in.Scopes)
+		audit.Describe(c, audit.Detail{TargetType: "mcp_credential", TargetID: c.Param("id"), Changes: map[string]any{"scopes": in.Scopes}})
+		respond(c, gin.H{"ok": true}, err)
+	})
+	api.DELETE("/auth/mcp-tokens/:id", authed, func(c *gin.Context) {
+		m := manager(c)
+		if m == nil {
+			return
+		}
+		err := m.RevokeMCPToken(c.Request.Context(), currentUser(c).ID, c.Param("id"))
+		audit.Describe(c, audit.Detail{TargetType: "mcp_credential", TargetID: c.Param("id")})
+		respond(c, gin.H{"ok": true}, err)
+	})
+	api.POST("/auth/mcp-tokens/revoke", func(c *gin.Context) {
+		var in struct {
+			Token string `json:"token"`
+		}
+		if !body(c, &in) {
+			return
+		}
+		revoker, ok := s.(interface {
+			RevokeMCPTokenByValue(context.Context, string) (string, string, error)
+		})
+		if !ok {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "token_management_unavailable"})
+			return
+		}
+		owner, id, err := revoker.RevokeMCPTokenByValue(c.Request.Context(), in.Token)
+		if owner != "" {
+			audit.SetActor(c, audit.Actor{UserID: owner, CredentialType: audit.CredentialPAT})
+		}
+		audit.Describe(c, audit.Detail{TargetType: "mcp_credential", TargetID: id})
 		respond(c, gin.H{"ok": true}, err)
 	})
 

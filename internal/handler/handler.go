@@ -487,31 +487,23 @@ func (h *Handler) registerAuth(api *gin.RouterGroup) {
 	})
 }
 
-// identity 解析调用者身份：Bearer 与 Cookie 各试一次（前端可能带着刚过期的
-// Bearer 令牌，而 HttpOnly Cookie 里是刷新后的新令牌，不能互相顶掉）。
+// identity 优先使用显式 Bearer；只有未提供 Authorization 时才读取会话 Cookie。
+// 拒绝的机器凭据或第三方凭据不能借用浏览器会话权限。
 func (h *Handler) identity() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		bearer := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
-		cookie, _ := c.Cookie("mf_session")
-		for _, token := range []string{bearer, cookie} {
-			if token == "" {
-				continue
-			}
+		// An explicit Bearer credential is authoritative. Never rescue a rejected
+		// machine/third-party credential with a more privileged browser cookie.
+		if token := tokenFromRequest(c); token != "" {
 			// PAT 仅用于公共业务 API；登录、账号安全与 OAuth 授权仍要求站内会话。
 			if strings.HasPrefix(token, store.PATPrefix) {
 				p := c.Request.URL.Path
-				if !strings.HasPrefix(p, "/api/admin/") && !strings.HasPrefix(p, "/api/users/") {
-					continue
+				if strings.HasPrefix(p, "/api/admin/") || strings.HasPrefix(p, "/api/users/") {
+					if principal, err := h.tokens.IntrospectPersonalAccessToken(c.Request.Context(), token); err == nil {
+						c.Set(userKey, &store.User{ID: principal.UserID, Username: principal.Username, Groups: principal.Groups, Permissions: principal.Permissions, TokenUse: "pat", PATID: principal.TokenID})
+					}
 				}
-				if principal, err := h.tokens.IntrospectPersonalAccessToken(c.Request.Context(), token); err == nil {
-					c.Set(userKey, &store.User{ID: principal.UserID, Username: principal.Username, Groups: principal.Groups, Permissions: principal.Permissions, TokenUse: "pat", PATID: principal.TokenID})
-					break
-				}
-				continue
-			}
-			if u, err := h.store.Authenticate(c.Request.Context(), token); err == nil {
+			} else if u, err := h.store.Authenticate(c.Request.Context(), token); err == nil {
 				c.Set(userKey, u)
-				break
 			}
 		}
 		c.Next()
@@ -569,9 +561,15 @@ func requirePermission(code string) gin.HandlerFunc {
 }
 
 func tokenFromRequest(c *gin.Context) string {
-	token := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
-	if token == "" {
-		token, _ = c.Cookie("mf_session")
+	if authorization := c.GetHeader("Authorization"); authorization != "" {
+		if !strings.HasPrefix(authorization, "Bearer ") {
+			return ""
+		}
+		return strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer "))
+	}
+	token, _ := c.Cookie("mf_session")
+	if strings.HasPrefix(token, store.PATPrefix) {
+		return ""
 	}
 	return token
 }

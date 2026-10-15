@@ -89,6 +89,11 @@ func TestTokenEndpointsRequireLogin(t *testing.T) {
 		{http.MethodGet, "/api/auth/tokens"},
 		{http.MethodPost, "/api/auth/tokens"},
 		{http.MethodDelete, "/api/auth/tokens/" + testPATID},
+		{http.MethodPatch, "/api/auth/tokens/" + testPATID},
+		{http.MethodPost, "/api/auth/tokens/" + testPATID + "/revoke"},
+		{http.MethodPost, "/api/auth/mcp-tokens"},
+		{http.MethodPatch, "/api/auth/mcp-tokens/" + testPATID},
+		{http.MethodDelete, "/api/auth/mcp-tokens/" + testPATID},
 	} {
 		w := doJSON(t, r, tc.method, tc.path, "", "")
 		if w.Code != http.StatusUnauthorized {
@@ -100,6 +105,35 @@ func TestTokenEndpointsRequireLogin(t *testing.T) {
 		decodeInto(t, w, &body)
 		if body.Error != "authentication_required" {
 			t.Fatalf("错误码应为 authentication_required，实际 %q", body.Error)
+		}
+	}
+}
+
+func TestTokenManagementCannotFallBackFromBearerToBrowserCookie(t *testing.T) {
+	fake := &fakePATs{plain: testPATPlain, principal: &store.PATPrincipal{UserID: "owner", Permissions: []string{"catalog.entity.edit"}}}
+	r, s := newPATTestServer(t, fake)
+	user := store.User{ID: "77777777-7777-7777-7777-777777777777", Username: "owner", Permissions: []string{"*"}}
+	session := strings.TrimPrefix(signBearer(t, s, user), "Bearer ")
+	oauth, _, _, err := s.Tokens.SignOAuth(user, "client", []string{"openid", "profile"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, credential := range []string{testPATPlain, oauth} {
+		for _, endpoint := range []struct{ method, path string }{
+			{"GET", "/api/auth/tokens"}, {"POST", "/api/auth/tokens"},
+			{"PATCH", "/api/auth/tokens/" + testPATID}, {"DELETE", "/api/auth/tokens/" + testPATID},
+			{"POST", "/api/auth/tokens/" + testPATID + "/revoke"},
+			{"POST", "/api/auth/mcp-tokens"}, {"PATCH", "/api/auth/mcp-tokens/" + testPATID}, {"DELETE", "/api/auth/mcp-tokens/" + testPATID},
+		} {
+			request := httptest.NewRequest(endpoint.method, endpoint.path, strings.NewReader(`{"name":"edit"}`))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Authorization", "Bearer "+credential)
+			request.AddCookie(&http.Cookie{Name: "mf_session", Value: session})
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, request)
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("non-session Bearer used browser authority on %s %s: %d", endpoint.method, endpoint.path, w.Code)
+			}
 		}
 	}
 }

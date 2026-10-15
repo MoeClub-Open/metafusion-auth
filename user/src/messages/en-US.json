@@ -93,7 +93,7 @@
   "auth.error.invalid_token_name": "Invalid token name (1–64 characters).",
   "auth.error.scope_not_granted": "The selected permission exceeds your own permissions and cannot be granted.",
   "auth.error.token_not_found": "That token does not exist or is not yours; the list may be stale — refresh and retry.",
-  "auth.error.token_limit_reached": "Unrevoked tokens have reached the limit of 10 — revoke the ones you no longer use first.",
+  "auth.error.token_limit_reached": "The active credential limit has been reached. Revoke or delete credentials you no longer use.",
   "auth.error.invalid_payload": "Invalid request payload, please check your input.",
   "auth.error.invalid_old_password": "Incorrect current password.",
   "auth.error.setup_complete": "System setup is already completed.",

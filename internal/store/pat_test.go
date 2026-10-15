@@ -67,7 +67,7 @@ func patRowTimes(t *testing.T, ctx context.Context, s *Store, id string) (expire
 func patActiveCount(t *testing.T, ctx context.Context, s *Store, userID string) int {
 	t.Helper()
 	var n int
-	if err := s.DB.QueryRowContext(ctx, "SELECT count(*) FROM auth.personal_access_tokens WHERE user_id=$1 AND revoked_at IS NULL", userID).Scan(&n); err != nil {
+	if err := s.DB.QueryRowContext(ctx, "SELECT count(*) FROM auth.personal_access_tokens WHERE user_id=$1 AND purpose='personal' AND revoked_at IS NULL AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at>now())", userID).Scan(&n); err != nil {
 		t.Fatalf("统计未吊销令牌: %v", err)
 	}
 	return n
@@ -304,7 +304,7 @@ func TestPersonalAccessTokensAgainstPostgres(t *testing.T) {
 		t.Fatalf("清理封禁用例的令牌: %v", err)
 	}
 
-	// ── 配额：每账号最多 10 张未吊销（字典 settings.patLimitHint 的承诺） ──
+	// ── 配额：每账号最多 10 张有效个人令牌，过期与 MCP 委托不占额度 ──
 	for patActiveCount(t, ctx, s, member.ID) < MaxPersonalAccessTokensPerUser {
 		if _, _, err := s.CreatePersonalAccessToken(ctx, member, "批量", []string{"catalog.entity.edit"}, 0); err != nil {
 			t.Fatalf("配额内创建失败: %v", err)
@@ -314,7 +314,7 @@ func TestPersonalAccessTokensAgainstPostgres(t *testing.T) {
 		t.Fatalf("超过 %d 张应回 token_limit_reached，实际 %v", MaxPersonalAccessTokensPerUser, err)
 	}
 	var activeID string
-	if err := s.DB.QueryRowContext(ctx, "SELECT id FROM auth.personal_access_tokens WHERE user_id=$1 AND revoked_at IS NULL LIMIT 1", member.ID).Scan(&activeID); err != nil {
+	if err := s.DB.QueryRowContext(ctx, "SELECT id FROM auth.personal_access_tokens WHERE user_id=$1 AND purpose='personal' AND revoked_at IS NULL AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at>now()) LIMIT 1", member.ID).Scan(&activeID); err != nil {
 		t.Fatalf("取一张未吊销令牌: %v", err)
 	}
 	if err := s.RevokePersonalAccessToken(ctx, member.ID, activeID); err != nil {

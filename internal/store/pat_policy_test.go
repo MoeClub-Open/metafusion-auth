@@ -1,9 +1,24 @@
 package store
 
 import (
+	"context"
 	"reflect"
 	"testing"
 )
+
+func TestMachineAndThirdPartyActorsCannotManageCredentials(t *testing.T) {
+	s := &Store{}
+	name := "New name"
+	for _, kind := range []string{"pat", TokenUseOAuth, TokenUseIDToken} {
+		actor := &User{ID: "11111111-1111-7111-8111-111111111111", TokenUse: kind, Permissions: []string{"*"}}
+		if err := s.UpdatePersonalAccessToken(context.Background(), actor, actor.ID, AccessTokenUpdate{Name: &name}); err == nil || err.Error() != "forbidden" {
+			t.Fatalf("%s edited credentials: %v", kind, err)
+		}
+		if _, _, err := s.CreatePersonalAccessToken(context.Background(), actor, "key", []string{"catalog.entity.edit"}, 0); err == nil || err.Error() != "forbidden" {
+			t.Fatalf("%s issued credentials: %v", kind, err)
+		}
+	}
+}
 
 func TestNewPATCannotDelegateManagement(t *testing.T) {
 	admin := &User{ID: "admin-test", Permissions: []string{"*"}}

@@ -201,8 +201,22 @@ func EffectivePATPermissions(u *User, scopes []string) []string {
 // CreatePersonalAccessToken 创建一张 PAT，返回元数据与**仅此一次**的明文。
 // expiresIn <= 0 表示永不过期（不写 expires_at）。
 func (s *Store) CreatePersonalAccessToken(ctx context.Context, actor *User, name string, scopes []string, expiresIn time.Duration) (PersonalAccessToken, string, error) {
+	for _, scope := range scopes {
+		if strings.TrimSpace(scope) == "mcp.connect" {
+			return PersonalAccessToken{}, "", fmt.Errorf("forbidden_pat_scope")
+		}
+	}
+	return s.createAccessToken(ctx, actor, name, scopes, expiresIn, "personal", MaxPersonalAccessTokensPerUser)
+}
+
+// MCP credentials share hashing/introspection, but have their own lifecycle and quota.
+func (s *Store) CreateMCPToken(ctx context.Context, actor *User, name string, scopes []string) (PersonalAccessToken, string, error) {
+	return s.createAccessToken(ctx, actor, name, append([]string{"mcp.connect"}, scopes...), 0, "mcp", 50)
+}
+
+func (s *Store) createAccessToken(ctx context.Context, actor *User, name string, scopes []string, expiresIn time.Duration, purpose string, limit int) (PersonalAccessToken, string, error) {
 	out := PersonalAccessToken{}
-	if actor == nil || strings.TrimSpace(actor.ID) == "" {
+	if actor == nil || strings.TrimSpace(actor.ID) == "" || actor.IsThirdParty() || actor.TokenUse == "pat" {
 		return out, "", fmt.Errorf("forbidden")
 	}
 	name = strings.TrimSpace(name)
@@ -232,18 +246,22 @@ func (s *Store) CreatePersonalAccessToken(ctx context.Context, actor *User, name
 	hash := HashPersonalAccessToken(plain)
 	err = s.write(ctx, func(tx *sql.Tx) error {
 		var n int
-		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM auth.personal_access_tokens WHERE user_id=$1 AND revoked_at IS NULL", actor.ID).Scan(&n); err != nil {
+		// Serialize issuance for one account, including concurrent MCP connections.
+		if _, err := tx.ExecContext(ctx, "SELECT id FROM auth.users WHERE id=$1 FOR UPDATE", actor.ID); err != nil {
 			return err
 		}
-		if n >= MaxPersonalAccessTokensPerUser {
+		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM auth.personal_access_tokens WHERE user_id=$1 AND purpose=$2 AND revoked_at IS NULL AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at>now())", actor.ID, purpose).Scan(&n); err != nil {
+			return err
+		}
+		if n >= limit {
 			return fmt.Errorf("token_limit_reached")
 		}
 		var expires any
 		if out.ExpiresAt != nil {
 			expires = *out.ExpiresAt
 		}
-		_, err := tx.ExecContext(ctx, "INSERT INTO auth.personal_access_tokens(id,user_id,name,token_hash,token_prefix,scopes,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7)",
-			out.ID, actor.ID, out.Name, hash, out.TokenPrefix, pq.Array(out.Scopes), expires)
+		_, err := tx.ExecContext(ctx, "INSERT INTO auth.personal_access_tokens(id,user_id,name,token_hash,token_prefix,scopes,expires_at,purpose) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+			out.ID, actor.ID, out.Name, hash, out.TokenPrefix, pq.Array(out.Scopes), expires, purpose)
 		return err
 	})
 	if err != nil {
@@ -255,7 +273,7 @@ func (s *Store) CreatePersonalAccessToken(ctx context.Context, actor *User, name
 // ListPersonalAccessTokens 列出**某个账号自己的**令牌（HTTP 层的调用者只会传当前登录身份）。
 // 明文与哈希都不在投影里；按创建时间倒序（id 是 uuidv7，同秒创建也能稳定排序）。
 func (s *Store) ListPersonalAccessTokens(ctx context.Context, userID string) ([]PersonalAccessToken, error) {
-	rows, err := s.DB.QueryContext(ctx, "SELECT id,name,token_prefix,scopes,expires_at,last_used_at,created_at,revoked_at FROM auth.personal_access_tokens WHERE user_id=$1 ORDER BY created_at DESC, id DESC", userID)
+	rows, err := s.DB.QueryContext(ctx, "SELECT id,name,token_prefix,scopes,expires_at,last_used_at,created_at,revoked_at FROM auth.personal_access_tokens WHERE user_id=$1 AND purpose='personal' AND deleted_at IS NULL ORDER BY created_at DESC, id DESC", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -301,11 +319,19 @@ func (s *Store) ListPersonalAccessTokens(ctx context.Context, userID string) ([]
 // 归属隔离：路径里没有别人的 user id，条件就是 user_id=本人；不是自己的令牌（或根本不存在）
 // 一律返回 token_not_found，不把"这张令牌属于别人"这个事实透出去（与开发者中心的 404 同口径）。
 func (s *Store) RevokePersonalAccessToken(ctx context.Context, userID, id string) error {
+	return s.revokeAccessToken(ctx, userID, id, "personal")
+}
+
+func (s *Store) RevokeMCPToken(ctx context.Context, userID, id string) error {
+	return s.revokeAccessToken(ctx, userID, id, "mcp")
+}
+
+func (s *Store) revokeAccessToken(ctx context.Context, userID, id, purpose string) error {
 	id = strings.TrimSpace(id)
 	if _, err := uuid.Parse(id); err != nil {
 		return fmt.Errorf("token_not_found")
 	}
-	res, err := s.DB.ExecContext(ctx, "UPDATE auth.personal_access_tokens SET revoked_at=now() WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL", id, userID)
+	res, err := s.DB.ExecContext(ctx, "UPDATE auth.personal_access_tokens SET revoked_at=now() WHERE id=$1 AND user_id=$2 AND purpose=$3 AND revoked_at IS NULL AND deleted_at IS NULL", id, userID, purpose)
 	if err != nil {
 		return err
 	}
@@ -313,7 +339,7 @@ func (s *Store) RevokePersonalAccessToken(ctx context.Context, userID, id string
 		return nil
 	}
 	var one int
-	if err := s.DB.QueryRowContext(ctx, "SELECT 1 FROM auth.personal_access_tokens WHERE id=$1 AND user_id=$2", id, userID).Scan(&one); err != nil {
+	if err := s.DB.QueryRowContext(ctx, "SELECT 1 FROM auth.personal_access_tokens WHERE id=$1 AND user_id=$2 AND purpose=$3 AND deleted_at IS NULL", id, userID, purpose).Scan(&one); err != nil {
 		return fmt.Errorf("token_not_found")
 	}
 	return nil
@@ -345,7 +371,7 @@ func (s *Store) IntrospectPersonalAccessToken(ctx context.Context, token string)
 	)
 	err := s.DB.QueryRowContext(ctx, "SELECT t.id,t.name,t.user_id,u.username,t.scopes,t.expires_at"+
 		" FROM auth.personal_access_tokens t JOIN auth.users u ON u.id=t.user_id"+
-		" WHERE t.token_hash=$1 AND t.revoked_at IS NULL AND (t.expires_at IS NULL OR t.expires_at>now()) AND NOT u.banned",
+		" WHERE t.token_hash=$1 AND t.revoked_at IS NULL AND t.deleted_at IS NULL AND (t.expires_at IS NULL OR t.expires_at>now()) AND NOT u.banned",
 		hash).Scan(&tokenID, &tokenName, &userID, &username, pq.Array(&scopes), &expires)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

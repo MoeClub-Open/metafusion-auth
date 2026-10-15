@@ -125,7 +125,9 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
 | --- | --- | --- | --- |
 | GET | `/api/auth/tokens` | 令牌 | 只列**本人**的令牌（`items`：`id`/`name`/`token_prefix`/`scopes`/`expires_at`/`last_used_at`/`created_at`/`revoked_at`/`active`） |
 | POST | `/api/auth/tokens` | 令牌 | 创建（`name` / `scopes[]` **至少一个权限码** / `expires_in_days?`，0 或缺省 = 永不过期）→ `201 {token, item}`，**明文只此一次** |
-| DELETE | `/api/auth/tokens/{id}` | 令牌 | 吊销本人的令牌（写 `revoked_at`，不删行；幂等，已吊销再删仍 200；不是本人的一律 404 `token_not_found`） |
+| PATCH | `/api/auth/tokens/{id}` | 站内会话 | 改名或调整 scopes，保持原密钥值 |
+| POST | `/api/auth/tokens/{id}/revoke` | 站内会话 | 撤销本人的令牌，列表保留记录，幂等 |
+| DELETE | `/api/auth/tokens/{id}` | 站内会话 | 撤销并移出列表，数据库保留审计关联记录，幂等；不是本人的一律 404 `token_not_found` |
 | POST | `/api/auth/tokens/introspect` | 无 | 内省（下游服务调用）：body `{"token":"mfp_..."}` → `{valid,user_id,username,permissions[],scopes[],token_prefix,expires_at}` |
 
 - **明文只出现一次**：`auth.personal_access_tokens.token_hash` 是 SHA-256 十六进制（唯一索引）+
@@ -134,7 +136,7 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
 - **scopes 是权限码**（`catalog.entity.edit`、`storage.asset.upload` …），且必须是**账号自己持有**的码：
   超出本人权限的创建直接拒绝（`400 scope_not_granted: <code>`），不静默取交集——否则用户会拿到
   一张比他要的更弱的令牌却毫无察觉。
-- **新 PAT 不可委托管理权限**：请求包含 `*` 或任一以 `.manage` 结尾的权限码时返回 `400 forbidden_pat_scope`，管理员同样受此限制。该策略只限制新签发；现有 PAT 仍按原有权限交集内省，本次升级不撤销存量令牌。
+- **个人 PAT 的可委托权限**：创建或调整 scopes 时，请求包含保留码 `mcp.connect`、`*` 或任一以 `.manage` 结尾的权限码即返回 `400 forbidden_pat_scope`，管理员同样受此限制。现有 PAT 仍按原有权限交集内省，不自动撤销。
 - **空 scopes 被拒绝**（`400 invalid_scope: empty`，缺失该字段、传 `[]` 或全空白都算）：创建时必须
   至少给一个权限码，避免签发没有实际用途的令牌。
 - **有效权限 = 账号现时权限 ∩ 该 PAT 的 scopes**，内省每次回表重算（账号权限被收回后，
@@ -148,19 +150,16 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
 - **错误不区分原因**：不存在 / 已吊销 / 已过期 / 账号被封禁一律 `401 {"error":"invalid_token"}`
   （区分原因等于告诉探测者"这个令牌曾经有效"）；只有"读不动库"是 `503 introspection_unavailable`，
   下游必须把非 200 一律当作"不认这个令牌"（fail-closed）。
-- **PAT 不是登录态**：三条自助端点只认访问令牌或 `mf_session` Cookie，`Authorization: Bearer mfp_...`
-  按匿名处理（401）；这些请求**不产出 `mf_session`**（内省也不）。因此"PAT 不能再创建 PAT"天然成立。
+- **管理凭据需要站内会话**：个人密钥管理与 MCP 委托创建、编辑及按 ID 撤销拒绝 PAT、第三方 OAuth 和 ID token。显式 `Authorization` 优先，失败时不回退浏览器 Cookie；Cookie 中的 PAT 也不作为会话。
 - **创建参数校验**：名称 1–64 字（`400 invalid_token_name`）；权限码格式非法 `400 invalid_scope: <code>`、
   一个码都没有 `400 invalid_scope: empty`；`expires_in_days` 取 1–3650（`400 invalid_expiry`）；
-  每账号最多 10 张未吊销令牌（`400 token_limit_reached`，吊销一张即可再建）。
+  每账号最多 10 张有效的个人令牌（`400 token_limit_reached`），已过期、撤销、删除的不占额度。
+- **MCP 独立委托**：`POST/PATCH/DELETE /api/auth/mcp-tokens[/{id}]` 单独管理 MCP 凭据，每账号最多 50 个有效凭据，不出现在个人列表。缩减直接更新原凭据，扩权必须重新授权。客户端断开时可用 `POST /api/auth/mcp-tokens/revoke` 和完整委托秘密撤销其自身；该入口不能操作个人密钥，不记录秘密到审计。
 - **`last_used_at` 的写节奏**：同一条令牌 **60 秒内只写一次**（与下游缓存同节奏）：内省在每个
   未命中缓存的请求上都会被调用，逐次 UPDATE 会把读路径变成写路径。
 - **`X-API-Key`**：字典里承诺的另一种携带方式由下游服务（目录 / 互动 / 存储）在各自的鉴权中间件里
   解析成同一张令牌再调内省，本服务不额外提供入口。
-- **表与迁移**：新表 `auth.personal_access_tokens` 按本服务既有约定只**追加**在 `Init` 的 DDL 末尾
-  （`CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`，既有语句一字未改），列形状冻结在
-  `internal/store/pat_schema_parity_test.go`；真库回归见 `internal/store/pat_test.go` 与
-  `internal/handler/pat_postgres_test.go`。
+- **表与迁移**：显式运行 `auth-server -migrate`；HTTP 启动只读检查。`auth.personal_access_tokens` 的 `purpose` 区分个人和 MCP 凭据，`deleted_at` 隐藏已删除记录；迁移按既有 `mcp.connect` scope 分类旧 MCP 凭据，保留令牌值，不按名称猜测。列形状见 `internal/store/pat_schema_parity_test.go`，真库回归见 `internal/store/access_token_management_postgres_test.go` 与 `internal/handler/pat_postgres_test.go`。
 - **管理他人令牌未做**（`/api/admin/tokens*` 本轮留空）：要做时沿用开发者面那套归属判定 +
   `auth.oauth_audit` 审计动作，别把"管理员能看全量"塞进 `/api/auth/tokens` 的归属判定里。
 

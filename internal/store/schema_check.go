@@ -20,7 +20,7 @@ func (s *Store) CheckSchema(ctx context.Context) error {
 		`SELECT invite_code,user_id,used_at FROM auth.invite_uses LIMIT 0`,
 		`SELECT id,code,names,descriptions,permissions,is_system,sort_order,created_at FROM auth.groups LIMIT 0`,
 		`SELECT user_id,group_id,granted_by,granted_at FROM auth.user_groups LIMIT 0`,
-		`SELECT id,user_id,name,token_hash,token_prefix,scopes,expires_at,last_used_at,created_at,revoked_at FROM auth.personal_access_tokens LIMIT 0`,
+		`SELECT id,user_id,name,token_hash,token_prefix,scopes,expires_at,last_used_at,created_at,revoked_at,purpose,deleted_at FROM auth.personal_access_tokens LIMIT 0`,
 		`SELECT dimension,key_hash,failures,expires_at FROM auth.login_failures LIMIT 0`,
 		`SELECT id,occurred_at,service,action,actor_user_id,actor_username,credential_type,actor_ip,actor_user_agent,target_type,target_id,changes,result,error_code,request_method,route,http_status,request_id FROM audit.audit_log LIMIT 0`,
 	}

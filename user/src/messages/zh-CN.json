@@ -93,7 +93,7 @@
   "auth.error.invalid_token_name": "令牌名称不合法（1–64 个字符）。",
   "auth.error.scope_not_granted": "所选权限超出你自己持有的权限，无法授予。",
   "auth.error.token_not_found": "该令牌不存在或不属于你，列表可能已过期，请刷新后重试。",
-  "auth.error.token_limit_reached": "未撤销的令牌已达 10 个上限，请先撤销不再使用的令牌。",
+  "auth.error.token_limit_reached": "有效凭据数量已达上限，请先撤销或删除不再使用的凭据。",
   "auth.error.invalid_payload": "请求格式错误，请检查输入",
   "auth.error.invalid_old_password": "原密码错误",
   "auth.error.setup_complete": "系统已完成初始化设置",
