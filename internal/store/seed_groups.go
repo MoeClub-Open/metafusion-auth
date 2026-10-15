@@ -37,7 +37,7 @@ func systemGroups() []seedGroup {
 			code:  "catalog_admin",
 			names: map[string]string{"zh-CN": "目录管理员", "zh-TW": "目錄管理員", "ja-JP": "カタログ管理者", "en-US": "Catalog administrator"},
 			desc:  map[string]string{"zh-CN": "管理动态定义、审核与生命周期、货架与外部库", "zh-TW": "管理動態定義、審核與生命週期、貨架與外部庫", "ja-JP": "動的定義、審査とライフサイクル、シェルフ、外部データベースの管理", "en-US": "Manage definitions, review/lifecycle, shelves and external databases"},
-			perms: []string{"catalog.entity.edit", "catalog.relation.edit", "catalog.definitions.manage", "catalog.lifecycle.manage", "catalog.shelves.manage"}, order: 10,
+			perms: []string{"catalog.review.manage", "catalog.review.bypass", "catalog.entity.edit", "catalog.relation.edit", "catalog.definitions.manage", "catalog.lifecycle.manage", "catalog.shelves.manage"}, order: 10,
 		},
 		{
 			code:  "catalog_editor",
