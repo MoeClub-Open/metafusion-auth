@@ -5,6 +5,7 @@
 // basePath /admin/account 只作用于本应用自己的路由，不参与这里——apiFetch 传的是绝对路径。
 // 唯一的例外是登录回跳的地址判定：只有本应用 basePath 内的路径才配当回跳目标（见 redirectToLogin）。
 
+import { requestAdminWorkspaceLogin } from "./adminWorkspace";
 import { BASE_PATH } from "./paths";
 
 /** 主站登录页：与本应用不同 basePath，永远用绝对路径，且不能带 basePath 前缀。 */
@@ -49,6 +50,7 @@ let loginRedirectIssued = false;
 export function redirectToLogin(): void {
   if (typeof window === "undefined" || loginRedirectIssued) return;
   loginRedirectIssued = true;
+  if (requestAdminWorkspaceLogin()) return;
   const pathname = window.location.pathname;
   const insideApp = pathname === BASE_PATH || pathname.startsWith(BASE_PATH + "/");
   if (!insideApp || pathname === LOGIN_PATH) {

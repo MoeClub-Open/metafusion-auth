@@ -68,6 +68,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: i18n 一致性（四语键集合 + 源码引用）
         run: bun run i18n:check
+      - name: 管理工作区协议测试
+        run: bun run test
       - name: tsc --noEmit
         run: bunx tsc --noEmit
       - name: next build

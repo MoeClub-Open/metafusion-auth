@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, FileClock, KeyRound, LogOut, ServerCog,
   Shapes, ShieldCheck, Ticket, Users,
@@ -13,6 +13,7 @@ import { can, canEnterAdmin, SECTION_PERMISSIONS, type SectionKey } from "@/lib/
 import { logout } from "@/lib/endpoints";
 import { stripBasePath } from "@/lib/paths";
 import { LocaleSwitcher } from "./LocaleSwitcher";
+import { connectAdminWorkspace, prepareAdminNavigation, announceAdminNavigation, isAdminWorkspaceEmbedded } from "@/lib/adminWorkspace";
 import { ThemeModeSwitcher } from "./ThemeModeSwitcher";
 import { ErrorNotice, ForbiddenBlock, LoadingBlock } from "./ui/blocks";
 
@@ -30,16 +31,23 @@ const NAV_GROUPS: { labelKey: string; items: { key: SectionKey; href: string; ic
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { t } = useI18n();
+  const { t, setLocale } = useI18n();
+  const [embedded, setEmbedded] = useState(false);
+  useEffect(() => {
+    const disconnect = connectAdminWorkspace(setLocale);
+    setEmbedded(disconnect !== null);
+    return disconnect ?? undefined;
+  }, [setLocale]);
   const { status, user, error, reload } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const pathname = stripBasePath(usePathname());
   const [signingOut, setSigningOut] = useState(false);
 
   const handleLogout = useCallback(async () => {
     setSigningOut(true);
     try { await logout(); } catch { /* 会话失效时仍返回主站。 */ }
-    finally { window.location.href = "/"; }
+    finally { (isAdminWorkspaceEmbedded() ? window.parent : window).location.href = "/"; }
   }, []);
 
   const visibleGroups = NAV_GROUPS.map((group) => ({
@@ -53,9 +61,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (status === "ready" && pathname === "/" && !activeHref && entryHref) router.replace(entryHref);
   }, [status, pathname, activeHref, entryHref, router]);
 
+  useEffect(() => { announceAdminNavigation(); }, [pathname, searchParams]);
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-text-strong">
-      <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
+      <header hidden={embedded} className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-page items-center justify-between gap-2 px-4 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <a href="/admin" aria-label={t("app.backToHub")} title={t("app.backToHub")} className="inline-flex h-11 w-11 sm:w-auto shrink-0 items-center justify-center gap-1 text-xs text-text-muted hover:text-text-strong"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">{t("app.backToHub")}</span></a>
@@ -75,7 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <aside className="w-full shrink-0 lg:w-56">
             <div className="lg:hidden rounded-card border border-line-subtle bg-surfaceSubtle p-3">
               <label htmlFor="account-admin-section" className="mb-2 block text-xs font-medium text-text-muted">{t("nav.section")}</label>
-              <select id="account-admin-section" value={activeHref ?? ""} onChange={(e) => router.push(e.target.value)} className="w-full rounded-control border border-line bg-surface px-3 py-2.5 text-sm text-text-strong">
+              <select id="account-admin-section" value={activeHref ?? ""} onChange={(e) => { prepareAdminNavigation("/admin/account" + e.target.value); if (embedded) router.replace(e.target.value); else router.push(e.target.value); }} className="w-full rounded-control border border-line bg-surface px-3 py-2.5 text-sm text-text-strong">
                 {!activeHref ? <option value="" disabled>{t("nav.section")}</option> : null}
                 {visibleGroups.map((group) => (
                   <optgroup key={group.labelKey} label={t(group.labelKey)}>
@@ -85,13 +95,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </select>
               {user ? <button type="button" onClick={() => void handleLogout()} disabled={signingOut} className="mt-3 inline-flex items-center gap-2 text-xs text-text-muted disabled:opacity-50"><LogOut className="h-4 w-4" />{t("session.logout")}</button> : null}
             </div>
-            <nav aria-label={t("nav.section")} className="hidden lg:block sticky top-24 rounded-card border border-line-subtle bg-surfaceSubtle p-2">
+            <nav aria-label={t("nav.section")} className={`hidden lg:block sticky ${embedded ? "top-6" : "top-24"} rounded-card border border-line-subtle bg-surfaceSubtle p-2`}>
               {visibleGroups.map((group) => (
                 <div key={group.labelKey} className="py-1 first:pt-0 last:pb-0">
                   <div className="px-3 py-2 text-[11px] font-semibold tracking-wide text-text-faint">{t(group.labelKey)}</div>
                   {group.items.map((item) => {
                     const active = activeHref === item.href;
-                    return <Link key={item.key} href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-control px-3 py-2.5 text-sm transition-colors ${active ? "bg-primary/15 font-semibold text-primary" : "text-text-muted hover:bg-surfaceHover hover:text-text-strong"}`}>
+                    return <Link key={item.key} href={item.href} replace={embedded} onClick={(event) => prepareAdminNavigation(event.currentTarget.href, event)} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-control px-3 py-2.5 text-sm transition-colors ${active ? "bg-primary/15 font-semibold text-primary" : "text-text-muted hover:bg-surfaceHover hover:text-text-strong"}`}>
                       {item.icon}<span>{t(`nav.${item.key}`)}</span>
                     </Link>;
                   })}

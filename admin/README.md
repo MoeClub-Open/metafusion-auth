@@ -3,6 +3,21 @@
 账号域自带的管理界面：**独立应用 + 同域路径 + 网关按路径聚合**（解耦审计 2026-09 §7.3 D1、§8.1）。
 它只调用账号服务（metafusion-auth）的 HTTP 接口，不 import 其它应用的内部代码，也不读任何服务的库。
 
+
+## 管理中心工作区
+
+站点统一入口为 `/admin`，顶栏切换到本服务可用 `/admin?workspace=account`，
+具体页面由 `path` 参数保存，刷新和复制地址均可恢复。主前端使用同源 iframe 承载本应用，
+切换时保留已经打开的工作区；直接访问 `/admin/account/` 仍可独立使用。
+
+`src/lib/adminWorkspace.ts` 实现 `metafusion.admin.v1` 协议：仅在同源 `/admin` 父页面、
+且窗口名为 `metafusion-admin-account` 时启用。嵌入时收起自己的顶栏，接收语言和主题偏好，
+回报页面导航与登录失效；消息必须同时核对 origin、source、channel 和 workspace。
+会话、权限、业务请求与服务端授权仍由本应用处理，不从父页面接收令牌或权限。
+跨出本应用的普通链接在顶层打开；失去登录态时由管理中心跳登录，并保留当前工作区回跳地址。
+
+主仓与本应用需同时具备 v1 协议；旧版应用不响应时，管理中心显示重试和独立打开入口。
+
 ## 与网关和主仓库的契约
 
 | 项 | 值 | 说明 |
@@ -25,6 +40,8 @@ location /admin/account/ {
     proxy_pass http://auth-admin:3000;   # 路径原样转发，不重写
 }
 ```
+
+验证：在 `admin/` 运行 `bun run test`、`bun run i18n:check`、`bun run typecheck` 和 `bun run build`。
 
 ## 本地跑
 
