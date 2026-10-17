@@ -134,7 +134,6 @@ export default function SetupPage() {
           <LocaleSwitcher />
         </div>
         <div className="w-full max-w-lg p-8 rounded-3xl bg-card border border-emerald-500/30 shadow-2xl text-center space-y-6 animate-scale-up relative overflow-hidden">
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="w-20 h-20 rounded-3xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 grid place-items-center mx-auto shadow-lg shadow-emerald-500/10">
             <CheckCircle2 className="w-10 h-10" />
           </div>
@@ -186,7 +185,6 @@ export default function SetupPage() {
 
   return (
     <div className="min-h-screen bg-background relative flex flex-col justify-between overflow-clip p-4 sm:p-8 selection:bg-primary selection:text-white">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/8 rounded-full blur-[140px] pointer-events-none" />
       <aside className="absolute top-5 right-5 z-20 flex items-center gap-2">
         <LocaleSwitcher />
       </aside>
