@@ -1,11 +1,10 @@
 package store
 
 // 公开账号资料（GET /api/users/:id）：字段只来自 auth.users 里**真实存在的列**
-// （id / username / display_name / bio / banned / email），不填没有来源的占位值——
-// 空字符串或 false 会被读成"这个人就是没头像 / 就是没开收藏"，而事实是"没有这个来源"。
+// （id / username / display_name / bio / banned / email / 隐私偏好）。
 //
 // 与 User（登录态投影）的分工：这里不下发 password_hash、组与权限；email 是隐私字段，
-// 只有请求者就是本人时才带出（判定在 PublicProfile 里，HTTP 层绕不过去）。
+// 只有本人或该用户已公开邮箱时才带出（判定在 PublicProfile 里）。
 
 import (
 	"context"
@@ -29,8 +28,10 @@ type PublicUser struct {
 	// 被 ban 的账号照样返回资料，只带上"已停用"这个事实：封禁是访问控制（不能登录/续期/验签），
 	// 不是"这个人不存在"；他的历史贡献与别人会话里的引用都还指向这个 id，回 404 会让
 	// 其它服务里的链接整片失效。前端据此降级展示即可。
-	Banned bool `json:"banned,omitempty"`
-	// Email 只在请求者就是本人时下发。
+	Banned          bool `json:"banned,omitempty"`
+	FavoritesPublic bool `json:"favorites_public"`
+	EmailPublic     bool `json:"email_public"`
+	// Email 仅本人或用户已主动公开时下发。
 	Email string `json:"email,omitempty"`
 }
 
@@ -58,8 +59,8 @@ const invitedCountQuery = "SELECT count(DISTINCT iu.user_id)" +
 	" FROM auth.invites i JOIN auth.invite_uses iu ON iu.invite_code=i.code" +
 	" WHERE i.created_by=$1"
 
-// PublicProfile 读取公开资料。viewerID 是请求者身份（匿名传空串）：email 只有
-// viewerID == id 时才带出，其余情况（匿名、看别人）该字段缺省。
+// PublicProfile 读取公开资料。viewerID 是请求者身份（匿名传空串）：email 在
+// viewerID == id 或 email_public 时带出，其余情况该字段缺省。
 //
 // 非 uuid 与查不到都返回 sql.ErrNoRows（HTTP 层统一映射 404）：把非法参数原样丢给
 // postgres 会得到 22P02 报错，那会以 500 暴露"参数直接进了 SQL"，而且同一个"没有这个账号"
@@ -83,8 +84,8 @@ func (s *Store) UpdateProfile(ctx context.Context, userID, displayName, bio stri
 		return out, fmt.Errorf("invalid_bio")
 	}
 	err := s.DB.QueryRowContext(ctx,
-		"UPDATE auth.users SET display_name=$2,bio=$3 WHERE id=$1 RETURNING id,username,display_name,bio",
-		userID, displayName, bio).Scan(&out.ID, &out.Username, &out.DisplayName, &out.Bio)
+		"UPDATE auth.users SET display_name=$2,bio=$3 WHERE id=$1 RETURNING id,username,display_name,bio,favorites_public,email_public",
+		userID, displayName, bio).Scan(&out.ID, &out.Username, &out.DisplayName, &out.Bio, &out.FavoritesPublic, &out.EmailPublic)
 	if err != nil {
 		return out, err // 含 sql.ErrNoRows → 404（账号在令牌有效期内被删）
 	}
@@ -98,8 +99,8 @@ func (s *Store) FillProfile(ctx context.Context, u *User) error {
 		return sql.ErrNoRows
 	}
 	return s.DB.QueryRowContext(ctx,
-		"SELECT COALESCE(display_name,''),COALESCE(bio,'') FROM auth.users WHERE id=$1", u.ID).
-		Scan(&u.DisplayName, &u.Bio)
+		"SELECT COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public FROM auth.users WHERE id=$1", u.ID).
+		Scan(&u.DisplayName, &u.Bio, &u.FavoritesPublic, &u.EmailPublic)
 }
 
 func (s *Store) PublicProfile(ctx context.Context, id, viewerID string) (PublicProfile, error) {
@@ -118,15 +119,15 @@ func (s *Store) PublicProfile(ctx context.Context, id, viewerID string) (PublicP
 	id = uid.String()
 	var banned bool
 	err = s.DB.QueryRowContext(ctx,
-		"SELECT id,username,COALESCE(email,''),banned,COALESCE(display_name,''),COALESCE(bio,'') FROM auth.users WHERE id=$1", id).
-		Scan(&out.User.ID, &out.User.Username, &out.User.Email, &banned, &out.User.DisplayName, &out.User.Bio)
+		"SELECT id,username,COALESCE(email,''),banned,COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public FROM auth.users WHERE id=$1", id).
+		Scan(&out.User.ID, &out.User.Username, &out.User.Email, &banned, &out.User.DisplayName, &out.User.Bio, &out.User.FavoritesPublic, &out.User.EmailPublic)
 	if err != nil {
 		return out, err // 含 sql.ErrNoRows → 404
 	}
 	out.User.Banned = banned
 	// viewerID 同样按 uuid 规范化后再比：同一个 id 的大小写/短写形式不能比成"不是本人"
 	// （比对写反方向的错更危险——下次改动就可能把别人的邮箱发出去）。
-	if v, verr := uuid.Parse(strings.TrimSpace(viewerID)); verr != nil || v.String() != id {
+	if v, verr := uuid.Parse(strings.TrimSpace(viewerID)); !out.User.EmailPublic && (verr != nil || v.String() != id) {
 		out.User.Email = ""
 	}
 	if err := s.DB.QueryRowContext(ctx, invitedCountQuery, id).Scan(&out.Stats.InvitedCount); err != nil {

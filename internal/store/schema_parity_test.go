@@ -23,8 +23,10 @@ var frozenTableDefs = map[string]map[string]string{
 		// 冻结它是因为登录、续期、验签三处都读它，改错只在线上以"封了还能进"暴露。
 		"banned": "banned boolean not null default false",
 		// 自助资料列：公开读出、本人可写；空串=未设置。
-		"display_name": "display_name text not null default ''",
-		"bio":          "bio text not null default ''",
+		"display_name":     "display_name text not null default ''",
+		"bio":              "bio text not null default ''",
+		"favorites_public": "favorites_public boolean not null default true",
+		"email_public":     "email_public boolean not null default false",
 	},
 	"auth.sessions": {
 		"token_hash": "token_hash text primary key",

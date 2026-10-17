@@ -23,10 +23,13 @@ type User struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	// 昵称与简介：空串=未设置（前端回退用户名/占位），omitempty 保持既有载荷形状。
-	DisplayName string   `json:"display_name,omitempty"`
-	Bio         string   `json:"bio,omitempty"`
-	Groups      []string `json:"groups,omitempty"`
-	Permissions []string `json:"permissions,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	Bio         string `json:"bio,omitempty"`
+	// JWT 与第三方身份不持有实时隐私偏好；只有回表后的账号响应才下发它们。
+	FavoritesPublic *bool    `json:"favorites_public,omitempty"`
+	EmailPublic     *bool    `json:"email_public,omitempty"`
+	Groups          []string `json:"groups,omitempty"`
+	Permissions     []string `json:"permissions,omitempty"`
 	// TokenUse 标记该身份所持令牌的用途（S01）：session=站内会话，oauth=第三方
 	// OAuth 访问令牌，id_token=OIDC 断言。
 	// ClientID/Scope 只在第三方身份上出现（哪次授权、授予了哪些 scope）。
@@ -81,6 +84,9 @@ ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS banned boolean NOT NULL DEFAULT 
 -- 写只走本人自助接口（PUT /api/auth/profile），不经过管理台。
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS display_name text NOT NULL DEFAULT '';
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS bio text NOT NULL DEFAULT '';
+-- 用户隐私偏好不属于实例准入设置。升级保留收藏原先公开、邮箱仅本人可见的行为。
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS favorites_public boolean NOT NULL DEFAULT true;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_public boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS auth.sessions (
  token_hash text PRIMARY KEY, user_id uuid NOT NULL REFERENCES auth.users(id), expires_at timestamptz NOT NULL
 );

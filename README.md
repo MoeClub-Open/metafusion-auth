@@ -23,9 +23,10 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | POST | `/api/auth/register` | 匿名 | 自助注册：受实例设置约束（开放注册 + 可选邀请码，见 `/api/auth/settings`）；成功即签发令牌并下发 Cookie |
 | POST | `/api/auth/refresh` | 站内会话 | 用当前 Bearer/Cookie 换发新令牌（服务端轮转会话行，无需独立 refresh_token）；第三方 OAuth、ID token 与 PAT 不得换成站内会话 |
 | GET | `/api/auth/me` | 令牌 | 当前账号 |
+| GET/PATCH | `/api/auth/privacy` | 站内会话 | 本人的隐私偏好：`favorites_public`、`email_public`；PATCH 局部更新，响应始终为两个布尔值 |
 | POST | `/api/auth/logout` | 令牌 | 注销当前会话并清 Cookie |
 | GET | `/api/auth/settings` | 匿名 | 实例准入能力：注册/邀请等设置的**持久化结果**（不是代码常量）；`require_email_verification` 恒为 false（邮件通道未接入） |
-| GET | `/api/users/:id` | 匿名 | 公开账号资料（前端用户主页）：`user` 给 `id`/`username`（被 ban 时带 `banned:true`），`stats.invited_count` 为该用户邀请成功的人数。`email` **只在请求者就是本人时**出现；非 uuid 或不存在的 id 一律 404 `not_found` |
+| GET | `/api/users/:id` | 匿名 | 公开账号资料（前端用户主页）：`user` 给 `id`/`username`、`favorites_public`/`email_public`（被 ban 时带 `banned:true`），`stats.invited_count` 为该用户邀请成功的人数。`email` 仅本人或 `email_public=true` 时出现，否则省略；非 uuid 或不存在的 id 一律 404 `not_found` |
 | GET/POST | `/api/auth/invite` | 令牌 | 个人邀请页：我的邀请码台账与由我邀请进来的人（`items`/`members`/`can_create`）/ 新建邀请码（`note`/`max_uses`/`expires_in_days`） |
 | PUT | `/api/auth/password` | 令牌 | 修改自己的密码（`old_password`/`new_password`） |
 | POST | `/api/auth/logout-all` | 令牌 | 吊销该用户全部会话 |
@@ -70,6 +71,10 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | POST | `/api/developer/apps/{id}/rotate-secret` | 登录 + 归属 | 轮换该应用密钥，明文只返回一次，旧密钥立即失效 |
 
 凭据、OAuth 授权与令牌的管理列表共用 `limit` / `offset` 分页（默认 50，上限 200），返回 `items`、`total`、`limit`、`offset`、`has_more`。后台入口为 `/credentials`，根据权限展示对应工作面；应用本身仍由 `/oauth-clients` 统一管理。升级时须先显式运行 `auth-server -migrate`，为 OAuth 令牌生成与密钥无关的 UUID；历史未保存的签发时间保持 `null`，新令牌才记录 `created_at`。
+
+用户隐私保存于 `auth.users`，与 `/api/auth/settings` 的实例准入配置分开：`favorites_public` 默认 `true`，保留原先收藏公开的行为；`email_public` 默认 `false`，邮箱默认仅本人可见。升级须显式执行 `auth-server -migrate`，HTTP 启动只做 schema 只读检查。第一方 `/auth/me` 回表读取最新偏好；JWT 不存这两项，以免切换后仍使用旧值。`GET /api/users/:id` 是跨服务读取用户公开偏好的统一来源，互动服务据此限制非本人收藏列表及数量读取，不跨 schema 查库。公开资料的私有邮箱自读仅承认第一方会话；PAT、第三方 OAuth 与 ID token 即使 subject 是本人也只按公开偏好读取，OAuth 应经 `/api/oauth/userinfo` 使用获授的 `email` scope。公开资料、`/auth/me` 和 `/auth/privacy` 使用 `Cache-Control: no-store`。
+
+`PATCH /api/auth/privacy` 仅接受 `{"favorites_public":false}`、`{"email_public":true}` 或同时提供两字段；至少提供一项且必须为 JSON 布尔值。空对象、`null`、未知字段、其他类型及多个 JSON 值均返回 `400 invalid_payload`。只更新请求中提供的字段，并发修改另一开关不会被覆盖。身份取自当前第一方会话，不接受指定 `user_id`；PAT、第三方 OAuth、ID token 和匿名请求均返回 `401 authentication_required`，显式 Bearer 失败不回退浏览器 Cookie。成功修改留下 `user.privacy_updated` 审计，只记录设置与归属，不记录邮箱或凭据。公开邮箱偏好不改变 OAuth `email` scope 的授权含义。
 
 限流：业务接口按已验证账号计数，匿名按 IP；读写各自使用固定窗口，**速率与开关来自实例设置**（`auth_rate_limit_enabled` /
 `auth_rate_limit_per_minute`，默认 `true` / 180 次每分钟），已验证 admin 组不计数。`enabled=false` 时不计数直接放行；

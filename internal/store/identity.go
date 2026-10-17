@@ -21,7 +21,7 @@ func (s *Store) User(ctx context.Context, token string) (*User, error) {
 	var u User
 	// NOT u.banned 是必须的：封禁后会话行与令牌行会被删掉，但"删行"与"封禁生效"之间
 	// 不该有窗口，读路径自己也拦一道（旧库/并行实例里残留的行同样按封禁处理）。
-	err := s.DB.QueryRowContext(ctx, "SELECT u.id,u.username,COALESCE(u.email,'') FROM auth.sessions s JOIN auth.users u ON u.id=s.user_id WHERE s.token_hash=$1 AND NOT u.banned AND s.expires_at>now()", h).Scan(&u.ID, &u.Username, &u.Email)
+	err := s.DB.QueryRowContext(ctx, "SELECT u.id,u.username,COALESCE(u.email,''),u.favorites_public,u.email_public FROM auth.sessions s JOIN auth.users u ON u.id=s.user_id WHERE s.token_hash=$1 AND NOT u.banned AND s.expires_at>now()", h).Scan(&u.ID, &u.Username, &u.Email, &u.FavoritesPublic, &u.EmailPublic)
 	if err == nil {
 		u.TokenUse = TokenUseSession
 		// 会话路径必须补齐组与权限：访问令牌过期（AccessTokenTTL）后请求回退到这里，
@@ -76,7 +76,7 @@ func (s *Store) CreateUser(ctx context.Context, username, email, password string
 				return fmt.Errorf("setup_complete")
 			}
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO auth.users(id,username,email,password_hash) VALUES($1,$2,$3,$4)", u.ID, u.Username, u.Email, string(hash)); err != nil {
+		if err := tx.QueryRowContext(ctx, "INSERT INTO auth.users(id,username,email,password_hash) VALUES($1,$2,$3,$4) RETURNING favorites_public,email_public", u.ID, u.Username, u.Email, string(hash)).Scan(&u.FavoritesPublic, &u.EmailPublic); err != nil {
 			return err
 		}
 		groupCodes := []string{"member"}
@@ -109,7 +109,7 @@ func (s *Store) Login(ctx context.Context, username, password string) (string, U
 	var stored string
 	var banned bool
 	var matches int
-	err := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),password_hash,banned,COALESCE(display_name,''),COALESCE(bio,''),count(*) OVER () FROM auth.users WHERE lower(username)=lower($1) OR (email=$1 AND email<>'')", strings.TrimSpace(username)).Scan(&u.ID, &u.Username, &u.Email, &stored, &banned, &u.DisplayName, &u.Bio, &matches)
+	err := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),password_hash,banned,COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public,count(*) OVER () FROM auth.users WHERE lower(username)=lower($1) OR (email=$1 AND email<>'')", strings.TrimSpace(username)).Scan(&u.ID, &u.Username, &u.Email, &stored, &banned, &u.DisplayName, &u.Bio, &u.FavoritesPublic, &u.EmailPublic, &matches)
 	// Never choose an arbitrary account when a username overlaps another account's email.
 	if err != nil || matches != 1 || bcrypt.CompareHashAndPassword([]byte(stored), []byte(password)) != nil {
 		return "", u, fmt.Errorf("invalid_credentials")
@@ -188,7 +188,7 @@ func (s *Store) Refresh(ctx context.Context, token string) (string, User, error)
 		return "", User{}, fmt.Errorf("invalid_token")
 	}
 	var fresh User
-	if ferr := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),COALESCE(display_name,''),COALESCE(bio,'') FROM auth.users WHERE id=$1", u.ID).Scan(&fresh.ID, &fresh.Username, &fresh.Email, &fresh.DisplayName, &fresh.Bio); ferr != nil {
+	if ferr := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public FROM auth.users WHERE id=$1", u.ID).Scan(&fresh.ID, &fresh.Username, &fresh.Email, &fresh.DisplayName, &fresh.Bio, &fresh.FavoritesPublic, &fresh.EmailPublic); ferr != nil {
 		return "", User{}, fmt.Errorf("invalid_token")
 	}
 	u = &fresh
@@ -362,7 +362,7 @@ func (s *Store) SetUserBanned(ctx context.Context, targetUserID string, banned b
 }
 
 func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := s.DB.QueryContext(ctx, "SELECT id, username, COALESCE(email,''), banned, COALESCE(display_name,''), COALESCE(bio,'') FROM auth.users ORDER BY username ASC")
+	rows, err := s.DB.QueryContext(ctx, "SELECT id, username, COALESCE(email,''), banned, COALESCE(display_name,''), COALESCE(bio,''),favorites_public,email_public FROM auth.users ORDER BY username ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +370,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Banned, &u.DisplayName, &u.Bio); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Banned, &u.DisplayName, &u.Bio, &u.FavoritesPublic, &u.EmailPublic); err != nil {
 			return nil, err
 		}
 		out = append(out, u)

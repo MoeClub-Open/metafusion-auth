@@ -416,14 +416,14 @@ func (s *Store) Register(ctx context.Context, username, email, password, inviteC
 			return fmt.Errorf("username_or_email_taken")
 		}
 		// 预检只是"友好路径"：两个并发注册可能同时通过它，唯一索引 users_username_lower_key 才是
-		// 最终裁判。ON CONFLICT + RowsAffected 让竞态落败方拿到与预检相同的稳定码，而不是把
+		// 最终裁判。ON CONFLICT + RETURNING 让竞态落败方拿到与预检相同的稳定码，而不是把
 		// "pq: duplicate key ... users_username_key" 交给注册页（2026-09-19 第二轮架构报告 #9/#15）。
-		res, err := tx.ExecContext(ctx, "INSERT INTO auth.users(id,username,email,password_hash) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING", u.ID, u.Username, u.Email, string(hash))
+		err := tx.QueryRowContext(ctx, "INSERT INTO auth.users(id,username,email,password_hash) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING favorites_public,email_public", u.ID, u.Username, u.Email, string(hash)).Scan(&u.FavoritesPublic, &u.EmailPublic)
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("username_or_email_taken")
+		}
 		if err != nil {
 			return err
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return fmt.Errorf("username_or_email_taken")
 		}
 		if needInvite {
 			if err := consumeInvite(ctx, tx, inviteCode, u.ID); err != nil {

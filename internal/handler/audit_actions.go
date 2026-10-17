@@ -31,6 +31,7 @@ func auditActions() map[string]string {
 		"POST /api/auth/logout-all":                       "user.sessions_revoked",
 		"PUT /api/auth/password":                          "user.password_changed",
 		"PUT /api/auth/profile":                           "user.profile_updated",
+		"PATCH /api/auth/privacy":                         "user.privacy_updated",
 		"POST /api/auth/invite":                           "invite.self_created",
 		"DELETE /api/auth/oauth-grants/:client_id":        "user.oauth_grant_revoked",
 		"POST /api/auth/tokens":                           "pat.created",

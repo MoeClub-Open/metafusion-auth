@@ -66,12 +66,13 @@ func (h *Handler) Register(r *gin.Engine) {
 	// （注册时把当时的 handler 链复制进路由表）。
 	api.Use(h.auditMiddleware())
 	h.registerAuth(api)
+	h.registerPrivacy(api)
 	h.registerOAuth(api)
 	h.registerDeveloper(api)
 	// 个人访问令牌：/api/auth/tokens*（自助创建/列出/吊销 + 下游用的内省）。
 	h.registerTokens(api)
 	h.registerAdminCredentials(api)
-	// 公开账号资料 GET /users/:id（匿名可读，email 仅本人可见）。
+	// 公开账号资料 GET /users/:id（匿名可读，email 按用户公开偏好裁剪）。
 	h.registerPublicUsers(api)
 	// 审计读取面 GET /admin/audit-logs（跨服务审计的唯一读取端点）。
 	h.registerAudit(api)
@@ -150,6 +151,7 @@ func (h *Handler) registerAuth(api *gin.RouterGroup) {
 	})
 
 	api.GET("/auth/me", requireUser(), func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
 		u := currentUser(c)
 		// 昵称/简介读穿 DB：JWT 投影至多陈旧一个令牌周期，/auth/me 按 id 回表取最新。
 		// 行没了（令牌有效期内账号被删）也不在这里 404——认证链已放行，资料缺省即可。
