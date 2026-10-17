@@ -9,13 +9,13 @@
 #
 # 多阶段 standalone 模式照抄 admin/Dockerfile（样板），构建器用 Bun。
 # ==============================================================================
-FROM oven/bun:1.4-alpine AS base
+FROM oven/bun:1.4.3-alpine AS base
 
 FROM base AS deps
 WORKDIR /app
-COPY user/package.json user/bun.lock* user/package-lock.json* ./
+COPY user/package.json user/bun.lock ./
 RUN --mount=type=cache,target=/root/.bun \
-    bun install --frozen-lockfile 2>/dev/null || bun install
+    bun install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
