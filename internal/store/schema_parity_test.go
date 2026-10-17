@@ -57,6 +57,8 @@ var frozenTableDefs = map[string]map[string]string{
 		"code_challenge_method": "code_challenge_method text not null default ''",
 	},
 	"auth.oauth_tokens": {
+		"id":         "id uuid not null default gen_random_uuid()",
+		"created_at": "created_at timestamptz",
 		"token_hash": "token_hash text primary key",
 		"client_id":  "client_id text not null references auth.oauth_clients(id) on delete cascade",
 		"user_id":    "user_id uuid not null references auth.users(id) on delete cascade",

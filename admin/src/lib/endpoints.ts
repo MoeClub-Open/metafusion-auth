@@ -270,6 +270,115 @@ export function deleteOAuthClient(id: string): Promise<{ ok: boolean }> {
   return sendJson<{ ok: boolean }>(`/api/admin/oauth/clients/${encodeURIComponent(id)}`, "DELETE");
 }
 
+// ── 全站凭据与 OAuth 授权治理 ──
+
+export interface AdminCredential {
+  id: string;
+  user_id: string;
+  username: string;
+  name: string;
+  token_prefix: string;
+  scopes: string[];
+  kind: "pat" | "mcp";
+  active: boolean;
+  status: "active" | "revoked" | "expired" | "disabled";
+  created_at: string;
+  expires_at?: string | null;
+  revoked_at?: string | null;
+  last_used_at?: string | null;
+}
+
+export interface AdminOAuthGrant {
+  client_id: string;
+  client_name: string;
+  user_id: string;
+  username: string;
+  scopes: string[];
+  granted_at: string | null;
+  updated_at: string | null;
+  expires_at?: string | null;
+  token_count: number;
+  active: boolean;
+}
+
+/** id 是服务端提供的不可用于认证的管理标识，不是令牌明文。 */
+export interface AdminOAuthToken {
+  id: string;
+  user_id: string;
+  username: string;
+  client_id: string;
+  client_name: string;
+  scope: string;
+  active: boolean;
+  status: "active" | "expired" | "disabled";
+  expires_at: string;
+  created_at: string | null;
+}
+
+export interface AdminCredentialQuery {
+  owner_id?: string;
+  kind?: "pat" | "mcp" | "";
+  status?: "active" | "revoked" | "expired" | "disabled" | "";
+  limit?: number;
+  offset?: number;
+}
+
+export interface AdminOAuthQuery {
+  owner_id?: string;
+  client_id?: string;
+  status?: "active" | "expired" | "disabled" | "";
+  limit?: number;
+  offset?: number;
+}
+
+export interface AdminPage<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+function adminQueryPath(path: string, query: AdminCredentialQuery | AdminOAuthQuery): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  return params.size ? `${path}?${params}` : path;
+}
+
+export function fetchAdminCredentials(query: AdminCredentialQuery): Promise<AdminPage<AdminCredential>> {
+  return getJson(adminQueryPath("/api/admin/credentials", query));
+}
+
+export function updateAdminCredential(id: string, patch: { name?: string; scopes?: string[] }): Promise<unknown> {
+  return apiFetch(`/api/admin/credentials/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function revokeAdminCredential(id: string): Promise<unknown> {
+  return sendJson(`/api/admin/credentials/${encodeURIComponent(id)}/revoke`, "POST");
+}
+
+export function deleteAdminCredential(id: string): Promise<unknown> {
+  return sendJson(`/api/admin/credentials/${encodeURIComponent(id)}`, "DELETE");
+}
+
+export function fetchAdminOAuthGrants(query: AdminOAuthQuery): Promise<AdminPage<AdminOAuthGrant>> {
+  return getJson(adminQueryPath("/api/admin/oauth/grants", query));
+}
+
+export function revokeAdminOAuthGrant(userId: string, clientId: string): Promise<unknown> {
+  return sendJson("/api/admin/oauth/grants/revoke", "POST", { user_id: userId, client_id: clientId });
+}
+
+export function fetchAdminOAuthTokens(query: AdminOAuthQuery): Promise<AdminPage<AdminOAuthToken>> {
+  return getJson(adminQueryPath("/api/admin/oauth/tokens", query));
+}
+
+export function deleteAdminOAuthToken(id: string): Promise<unknown> {
+  return sendJson(`/api/admin/oauth/tokens/${encodeURIComponent(id)}`, "DELETE");
+}
+
 // ── 审计留痕（读取面） ──
 //
 // 契约来源（只读核对，本应用不改账号服务代码）：docs/architecture/audit-log.md §1 表结构、§4 脱敏、§5 读取面。

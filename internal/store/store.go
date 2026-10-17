@@ -119,6 +119,11 @@ CREATE TABLE IF NOT EXISTS auth.oauth_tokens (
 -- 签发时的 jti：吊销整批令牌时用它把已签发的无状态 JWT 在本进程内立即作废
 -- （库里只有哈希，没有 jti 就无法把"批量的行"映射回令牌）。
 ALTER TABLE auth.oauth_tokens ADD COLUMN IF NOT EXISTS jti text NOT NULL DEFAULT '';
+-- Public management identifiers are independent of bearer material and hashes.
+ALTER TABLE auth.oauth_tokens ADD COLUMN IF NOT EXISTS id uuid NOT NULL DEFAULT gen_random_uuid();
+-- Historical issue times were not stored; leave them unknown rather than inventing one.
+ALTER TABLE auth.oauth_tokens ADD COLUMN IF NOT EXISTS created_at timestamptz;
+CREATE UNIQUE INDEX IF NOT EXISTS oauth_tokens_id_key ON auth.oauth_tokens(id);
 -- OAuth 审计：同意/拒绝与客户端管理动作。client_id 故意不建外键——客户端删掉之后
 -- 这份记录必须还在，否则审计就失去意义。
 CREATE TABLE IF NOT EXISTS auth.oauth_audit (

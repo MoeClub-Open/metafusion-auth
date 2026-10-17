@@ -27,6 +27,7 @@ export function can(user: MeUser | null | undefined, code: string): boolean {
 /** 各管理面需要的码，也是导航与降级判定的唯一来源。 */
 export const SECTION_PERMISSIONS = {
   users: AUTH_USERS_MANAGE,
+  credentials: [AUTH_USERS_MANAGE, AUTH_OAUTH_MANAGE],
   groups: AUTH_GROUPS_MANAGE,
   invites: AUTH_INVITES_MANAGE,
   oauth: AUTH_OAUTH_MANAGE,
@@ -36,7 +37,12 @@ export const SECTION_PERMISSIONS = {
 
 export type SectionKey = keyof typeof SECTION_PERMISSIONS;
 
+export function canEnterSection(user: MeUser | null | undefined, section: SectionKey): boolean {
+  const required = SECTION_PERMISSIONS[section];
+  return typeof required === "string" ? can(user, required) : required.some((code) => can(user, code));
+}
+
 /** 能否进入本管理台：任一管理码命中。 */
 export function canEnterAdmin(user: MeUser | null | undefined): boolean {
-  return (Object.values(SECTION_PERMISSIONS) as string[]).some((code) => can(user, code));
+  return (Object.keys(SECTION_PERMISSIONS) as SectionKey[]).some((section) => canEnterSection(user, section));
 }

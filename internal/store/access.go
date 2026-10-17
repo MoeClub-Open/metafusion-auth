@@ -37,6 +37,7 @@ type PermissionCode struct {
 // 它只是"清单"，不是白名单：下游可以自定义新码，格式合法即可（见 ValidPermissionCode）。
 func PermissionCatalog() []PermissionCode {
 	return []PermissionCode{
+		{Code: "assistant.manage", Service: "assistant", Names: map[string]string{"zh-CN": "管理 AI 助手", "zh-TW": "管理 AI 助理", "ja-JP": "AI アシスタント管理", "en-US": "Manage AI assistant"}},
 		{Code: "mcp.connect", Service: "mcp", Names: map[string]string{"zh-CN": "连接 MCP", "zh-TW": "連接 MCP", "ja-JP": "MCP 接続", "en-US": "Connect MCP"}, Descriptions: map[string]string{"zh-CN": "仅证明账号身份，不授予业务编辑权限", "zh-TW": "僅證明帳號身分，不授予業務編輯權限", "ja-JP": "本人確認のみ。編集権限は付与しません", "en-US": "Identity only; grants no business editing permissions"}},
 		{Code: "*", Service: "auth", Names: map[string]string{"zh-CN": "全部权限", "zh-TW": "全部權限", "ja-JP": "すべての権限", "en-US": "All permissions"}},
 		{Code: "auth.users.manage", Service: "auth", Names: map[string]string{"zh-CN": "管理账号", "zh-TW": "管理帳號", "ja-JP": "アカウント管理", "en-US": "Manage accounts"}},

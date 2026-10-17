@@ -85,11 +85,15 @@ func (s *Store) updateAccessToken(ctx context.Context, actor *User, id, purpose 
 // Remove from the user's list and revoke atomically. Retain the row for audit
 // attribution; introspection and quota calculations exclude deleted records.
 func (s *Store) DeletePersonalAccessToken(ctx context.Context, user, id string) error {
+	return s.deleteAccessToken(ctx, user, id, "personal")
+}
+
+func (s *Store) deleteAccessToken(ctx context.Context, user, id, purpose string) error {
 	if _, err := uuid.Parse(id); err != nil {
 		return fmt.Errorf("token_not_found")
 	}
 	var found string
-	err := s.DB.QueryRowContext(ctx, "UPDATE auth.personal_access_tokens SET deleted_at=coalesce(deleted_at,now()),revoked_at=coalesce(revoked_at,now()) WHERE id=$1 AND user_id=$2 AND purpose='personal' RETURNING id", id, user).Scan(&found)
+	err := s.DB.QueryRowContext(ctx, "UPDATE auth.personal_access_tokens SET deleted_at=coalesce(deleted_at,now()),revoked_at=coalesce(revoked_at,now()) WHERE id=$1 AND user_id=$2 AND purpose=$3 RETURNING id", id, user, purpose).Scan(&found)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("token_not_found")
 	}

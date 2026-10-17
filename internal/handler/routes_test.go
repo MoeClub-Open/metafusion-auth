@@ -15,6 +15,14 @@ import (
 // 另外按 OIDC 标准在根路径提供发现文档与 JWKS（发现文档里的地址取自 issuer，
 // 两个入口内容完全相同）。改动路由会在这里失败，而不是等线上 404 才发现。
 var frozenRoutes = []string{
+	"GET /api/admin/credentials",
+	"PATCH /api/admin/credentials/:id",
+	"POST /api/admin/credentials/:id/revoke",
+	"DELETE /api/admin/credentials/:id",
+	"GET /api/admin/oauth/grants",
+	"POST /api/admin/oauth/grants/revoke",
+	"GET /api/admin/oauth/tokens",
+	"DELETE /api/admin/oauth/tokens/:id",
 	"POST /api/auth/tokens/:id/revoke",
 	"PATCH /api/auth/tokens/:id",
 	"POST /api/auth/mcp-tokens",

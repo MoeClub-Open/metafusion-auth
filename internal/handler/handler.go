@@ -70,6 +70,7 @@ func (h *Handler) Register(r *gin.Engine) {
 	h.registerDeveloper(api)
 	// 个人访问令牌：/api/auth/tokens*（自助创建/列出/吊销 + 下游用的内省）。
 	h.registerTokens(api)
+	h.registerAdminCredentials(api)
 	// 公开账号资料 GET /users/:id（匿名可读，email 仅本人可见）。
 	h.registerPublicUsers(api)
 	// 审计读取面 GET /admin/audit-logs（跨服务审计的唯一读取端点）。

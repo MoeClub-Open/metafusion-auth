@@ -816,7 +816,7 @@ func (s *Store) ExchangeOAuthCode(ctx context.Context, clientID, clientSecret, c
 		expiresAt = time.Unix(exp, 0)
 	}
 	scope := FormatScopes(granted)
-	if _, err = s.DB.ExecContext(ctx, "INSERT INTO auth.oauth_tokens(token_hash, client_id, user_id, scope, jti, expires_at) VALUES($1, $2, $3, $4, $5, $6)", sessionHash(token), clientID, userID, scope, jti, expiresAt); err != nil {
+	if _, err = s.DB.ExecContext(ctx, "INSERT INTO auth.oauth_tokens(token_hash, client_id, user_id, scope, jti, expires_at, created_at) VALUES($1, $2, $3, $4, $5, $6, now())", sessionHash(token), clientID, userID, scope, jti, expiresAt); err != nil {
 		return OAuthGrant{}, err
 	}
 	return OAuthGrant{Token: token, Scope: scope, ExpiresIn: int(ttl.Seconds()), User: &u}, nil
@@ -953,109 +953,21 @@ func (s *Store) ListOAuthGrants(ctx context.Context, userID string) ([]Authorize
 	if userID == "" {
 		return nil, fmt.Errorf("authentication_required")
 	}
-	type acc struct {
-		name    string
-		scopes  map[string]bool
-		active  bool
-		lastAt  time.Time
-		expires time.Time
-	}
-	grants := map[string]*acc{}
-	touch := func(clientID string) *acc {
-		g, ok := grants[clientID]
-		if !ok {
-			g = &acc{scopes: map[string]bool{}}
-			grants[clientID] = g
-		}
-		return g
-	}
-
-	rows, err := s.DB.QueryContext(ctx, "SELECT t.client_id, COALESCE(c.name,''), t.scope, t.expires_at FROM auth.oauth_tokens t LEFT JOIN auth.oauth_clients c ON c.id=t.client_id WHERE t.user_id=$1 AND t.expires_at>now()", userID)
+	page, err := s.listOAuthGrantRecords(ctx, AdminRecordFilter{OwnerID: userID}, false)
 	if err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var clientID, name, scope string
-		var exp time.Time
-		if err := rows.Scan(&clientID, &name, &scope, &exp); err != nil {
-			rows.Close()
-			return nil, err
+	out := make([]AuthorizedApp, 0, len(page.Items))
+	for _, g := range page.Items {
+		item := AuthorizedApp{ClientID: g.ClientID, Name: g.ClientName, Scopes: g.Scopes, Active: g.Active}
+		if g.GrantedAt != nil {
+			item.LastAuthorizedAt = g.GrantedAt.UTC().Format(time.RFC3339)
 		}
-		g := touch(clientID)
-		if g.name == "" {
-			g.name = name
-		}
-		for _, sc := range SplitScopes(scope) {
-			g.scopes[sc] = true
-		}
-		g.active = true
-		if exp.After(g.expires) {
-			g.expires = exp
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	audits, err := s.DB.QueryContext(ctx, "SELECT a.client_id, COALESCE(c.name,''), a.scopes, a.created_at FROM auth.oauth_audit a LEFT JOIN auth.oauth_clients c ON c.id=a.client_id WHERE a.subject_user_id=$1 AND a.action IN ($2,$3) ORDER BY a.created_at DESC", userID, OAuthActionConsentAllow, OAuthActionTrustedAllow)
-	if err != nil {
-		return nil, err
-	}
-	for audits.Next() {
-		var clientID, name string
-		var scopes []string
-		var at time.Time
-		if err := audits.Scan(&clientID, &name, pq.Array(&scopes), &at); err != nil {
-			audits.Close()
-			return nil, err
-		}
-		g := touch(clientID)
-		if g.name == "" {
-			g.name = name
-		}
-		// 审计按时间倒序：第一条即最近一次授权，只有它决定"最近授权时间"。
-		if g.lastAt.IsZero() {
-			g.lastAt = at
-			// 没有生效中的令牌时（已过期或已被撤回），scope 以最近一次授权为准，
-			// 否则列表会显示一个空 scope 的应用。
-			if !g.active {
-				for _, sc := range scopes {
-					g.scopes[sc] = true
-				}
-			}
-		}
-	}
-	audits.Close()
-	if err := audits.Err(); err != nil {
-		return nil, err
-	}
-
-	out := make([]AuthorizedApp, 0, len(grants))
-	for clientID, g := range grants {
-		// 客户端已被删除时名字取不到，用 client_id 兜底：列表项不能没有标题。
-		name := g.name
-		if strings.TrimSpace(name) == "" {
-			name = clientID
-		}
-		item := AuthorizedApp{ClientID: clientID, Name: name, Scopes: SortedScopes(g.scopes), Active: g.active}
-		if !g.lastAt.IsZero() {
-			item.LastAuthorizedAt = g.lastAt.UTC().Format(time.RFC3339)
-		}
-		if g.active && !g.expires.IsZero() {
-			item.ExpiresAt = g.expires.UTC().Format(time.RFC3339)
+		if g.Active && g.ExpiresAt != nil {
+			item.ExpiresAt = g.ExpiresAt.UTC().Format(time.RFC3339)
 		}
 		out = append(out, item)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Active != out[j].Active {
-			return out[i].Active
-		}
-		if out[i].LastAuthorizedAt != out[j].LastAuthorizedAt {
-			return out[i].LastAuthorizedAt > out[j].LastAuthorizedAt
-		}
-		return out[i].ClientID < out[j].ClientID
-	})
 	return out, nil
 }
 
@@ -1075,6 +987,10 @@ func SortedScopes(set map[string]bool) []string {
 // 只按 (user_id, client_id) 定位，天然碰不到别人的授权——这也是它与管理员的
 // /admin/users/{id}/revoke-oauth-tokens（按用户，需权限码）的区别。
 func (s *Store) RevokeOwnOAuthGrant(ctx context.Context, userID, clientID string) (int, error) {
+	return s.revokeOAuthGrant(ctx, userID, clientID, userID, "self_service")
+}
+
+func (s *Store) revokeOAuthGrant(ctx context.Context, userID, clientID, actorID, detail string) (int, error) {
 	userID = strings.TrimSpace(userID)
 	clientID = strings.TrimSpace(clientID)
 	if userID == "" {
@@ -1104,7 +1020,7 @@ func (s *Store) RevokeOwnOAuthGrant(ctx context.Context, userID, clientID string
 		if _, err := tx.ExecContext(ctx, "DELETE FROM auth.oauth_codes WHERE user_id=$1 AND client_id=$2 AND used=false AND expires_at>now()", userID, clientID); err != nil {
 			return err
 		}
-		return recordOAuthAuditTx(ctx, tx, userID, userID, clientID, OAuthActionTokensRevoked, nil, "self_service")
+		return recordOAuthAuditTx(ctx, tx, actorID, userID, clientID, OAuthActionTokensRevoked, nil, detail)
 	})
 	if err != nil {
 		return 0, err

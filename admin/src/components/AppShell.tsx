@@ -4,12 +4,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowLeft, FileClock, KeyRound, LogOut, ServerCog,
+  ArrowLeft, FileClock, Fingerprint, KeyRound, LogOut, ServerCog,
   Shapes, ShieldCheck, Ticket, Users,
 } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useSession } from "@/lib/session";
-import { can, canEnterAdmin, SECTION_PERMISSIONS, type SectionKey } from "@/lib/permissions";
+import { canEnterAdmin, canEnterSection, type SectionKey } from "@/lib/permissions";
 import { logout } from "@/lib/endpoints";
 import { stripBasePath } from "@/lib/paths";
 import { LocaleSwitcher } from "./LocaleSwitcher";
@@ -20,6 +20,7 @@ import { ErrorNotice, ForbiddenBlock, LoadingBlock } from "./ui/blocks";
 const NAV_GROUPS: { labelKey: string; items: { key: SectionKey; href: string; icon: React.ReactNode }[] }[] = [
   { labelKey: "nav.groupIdentity", items: [
     { key: "users", href: "/", icon: <Users className="h-4 w-4" /> },
+    { key: "credentials", href: "/credentials", icon: <Fingerprint className="h-4 w-4" /> },
     { key: "groups", href: "/groups", icon: <Shapes className="h-4 w-4" /> },
     { key: "invites", href: "/invites", icon: <Ticket className="h-4 w-4" /> },
   ] },
@@ -52,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => can(user, SECTION_PERMISSIONS[item.key])),
+    items: group.items.filter((item) => canEnterSection(user, item.key)),
   })).filter((group) => group.items.length > 0);
   const visibleNav = visibleGroups.flatMap((group) => group.items);
   const activeHref = visibleNav.find((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href))?.href;

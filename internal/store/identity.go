@@ -182,6 +182,11 @@ func (s *Store) Refresh(ctx context.Context, token string) (string, User, error)
 		}
 		return "", User{}, fmt.Errorf("invalid_token")
 	}
+	// A third-party identity (including a PAT) can never become a first-party
+	// session. Reject before reloading account permissions or issuing a token.
+	if u.TokenUse != TokenUseSession {
+		return "", User{}, fmt.Errorf("invalid_token")
+	}
 	var fresh User
 	if ferr := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),COALESCE(display_name,''),COALESCE(bio,'') FROM auth.users WHERE id=$1", u.ID).Scan(&fresh.ID, &fresh.Username, &fresh.Email, &fresh.DisplayName, &fresh.Bio); ferr != nil {
 		return "", User{}, fmt.Errorf("invalid_token")

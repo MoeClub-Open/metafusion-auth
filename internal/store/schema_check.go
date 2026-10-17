@@ -13,7 +13,7 @@ func (s *Store) CheckSchema(ctx context.Context) error {
 		`SELECT token_hash,user_id,expires_at FROM auth.sessions LIMIT 0`,
 		`SELECT id,secret_hash,name,redirect_uris,trusted,scopes,disabled,owner_user_id,description,homepage_url,verified,created_at FROM auth.oauth_clients LIMIT 0`,
 		`SELECT code,client_id,user_id,redirect_uri,scope,expires_at,used,code_challenge,code_challenge_method FROM auth.oauth_codes LIMIT 0`,
-		`SELECT token_hash,client_id,user_id,scope,expires_at,jti FROM auth.oauth_tokens LIMIT 0`,
+		`SELECT id,created_at,token_hash,client_id,user_id,scope,expires_at,jti FROM auth.oauth_tokens LIMIT 0`,
 		`SELECT id,actor_user_id,subject_user_id,client_id,action,scopes,detail,created_at FROM auth.oauth_audit LIMIT 0`,
 		`SELECT key,value,updated_at FROM auth.instance_settings LIMIT 0`,
 		`SELECT code,created_by,note,max_uses,used_count,revoked,expires_at,created_at FROM auth.invites LIMIT 0`,

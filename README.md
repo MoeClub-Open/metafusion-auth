@@ -21,7 +21,7 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | GET/POST | `/api/setup` | 首次初始化 | 检查是否仍需初始化首管 / 创建首个管理员（已有用户则拒绝 `setup_complete`） |
 | POST | `/api/auth/login` | 匿名 | 用户名+密码换取令牌，同时下发 HttpOnly Cookie `mf_session` |
 | POST | `/api/auth/register` | 匿名 | 自助注册：受实例设置约束（开放注册 + 可选邀请码，见 `/api/auth/settings`）；成功即签发令牌并下发 Cookie |
-| POST | `/api/auth/refresh` | 令牌 | 用当前 Bearer/Cookie 换发新令牌（服务端轮转会话行，无需独立 refresh_token） |
+| POST | `/api/auth/refresh` | 站内会话 | 用当前 Bearer/Cookie 换发新令牌（服务端轮转会话行，无需独立 refresh_token）；第三方 OAuth、ID token 与 PAT 不得换成站内会话 |
 | GET | `/api/auth/me` | 令牌 | 当前账号 |
 | POST | `/api/auth/logout` | 令牌 | 注销当前会话并清 Cookie |
 | GET | `/api/auth/settings` | 匿名 | 实例准入能力：注册/邀请等设置的**持久化结果**（不是代码常量）；`require_email_verification` 恒为 false（邮件通道未接入） |
@@ -32,12 +32,16 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | GET | `/api/auth/oauth-grants` | 令牌 | 我授权过的第三方应用（`items`：`client_id`/`name`/`scopes`/`active`/`last_authorized_at`/`expires_at`） |
 | DELETE | `/api/auth/oauth-grants/{client_id}` | 令牌 | 撤回**我自己**对该应用的授权（删未过期令牌与未兑换授权码，回 `{"ok":true,"revoked":N}`；只作用于本人） |
 | GET/POST | `/api/auth/tokens` | 令牌 | 个人访问令牌（PAT）：列出**本人**的令牌 / 创建（`201` 回明文 + 元数据，明文只此一次），见「个人访问令牌」 |
-| DELETE | `/api/auth/tokens/{id}` | 令牌 | 吊销本人的 PAT（写 `revoked_at`，不删行；幂等） |
+| PATCH/DELETE | `/api/auth/tokens/{id}` | 站内会话 | 修改本人 PAT 的名称、权限 / 删除（同时撤销，审计归属保留） |
+| POST | `/api/auth/tokens/{id}/revoke` | 站内会话 | 撤销本人的 PAT，保留可见记录 |
 | POST | `/api/auth/tokens/introspect` | **无** | 内省：下游服务凭明文换 `{valid,user_id,username,permissions[],expires_at}`；无效/吊销/过期/封禁统一 `401 invalid_token` |
 | GET/POST | `/api/admin/users` | 管理员 | 账号列表（含 `banned`）/ 创建账号（默认角色 `editor`） |
 | PUT | `/api/admin/users/{id}/password` | `auth.users.manage` | 重置密码 |
 | PUT | `/api/admin/users/{id}/groups` | `auth.users.manage` | 设置该用户的权限组（`groups` 整组替换） |
 | PUT | `/api/admin/users/{id}/ban` | `auth.users.manage` | 封禁 / 解封（body `{"banned":true|false}`，缺字段 400 `invalid_payload`）；封禁同时删除该用户的会话、第三方令牌与未兑换授权码，且验签立即拒绝（见「账号封禁」） |
+| GET | `/api/admin/credentials` | `auth.users.manage` | 全站 API key/PAT、MCP 连接凭据；按 `owner_id`、`kind=pat|mcp`、`status=active|revoked|expired|disabled` 过滤，只有展示前缀，不返回明文或哈希 |
+| PATCH/DELETE | `/api/admin/credentials/{id}` | `auth.users.manage` | 修改名称/权限、删除；复用自助 scope 校验、账号权限交集与 MCP 不扩权规则 |
+| POST | `/api/admin/credentials/{id}/revoke` | `auth.users.manage` | 撤销指定凭据，保留可见记录 |
 | GET/PUT | `/api/admin/settings` | `auth.settings.manage` | 实例设置的读取与局部更新（管理台用）；只认接受表里的键，表外的键一律 `400 invalid_setting: <key>` |
 | GET/POST | `/api/admin/invites` | `auth.invites.manage` | 邀请码台账（`items`）/ 新建 |
 | POST | `/api/admin/invites/{code}/revoke` | `auth.invites.manage` | 作废邀请码 |
@@ -52,6 +56,10 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | POST | `/api/admin/oauth/clients/{id}/rotate-secret` | `auth.oauth.manage` | 轮换密钥：明文只返回一次，老密钥立即失效 |
 | POST | `/api/admin/oauth/clients/{id}/revoke-tokens`、`/api/admin/users/{id}/revoke-oauth-tokens` | `auth.oauth.manage` | 吊销未过期令牌（连未兑换的授权码一起作废），按客户端或按用户 |
 | GET | `/api/admin/oauth/audits` | `auth.oauth.manage` | 授权审计（同意/拒绝与客户端管理动作，可按 `client_id` 过滤） |
+| GET | `/api/admin/oauth/grants` | `auth.oauth.manage` | 全站用户应用授权，按 `owner_id`、`client_id`、`status=active|inactive` 过滤；与自助授权列表共用投影，撤销后保留历史 |
+| POST | `/api/admin/oauth/grants/revoke` | `auth.oauth.manage` | 请求 `{user_id,client_id}`；撤销该用户该应用的有效令牌与未兑换授权码 |
+| GET | `/api/admin/oauth/tokens` | `auth.oauth.manage` | 全站 OAuth 令牌元数据，按 `owner_id`、`client_id`、`status=active|expired|disabled` 过滤；令牌以独立 UUID 标识，明文和哈希不返回 |
+| DELETE | `/api/admin/oauth/tokens/{id}` | `auth.oauth.manage` | 撤销并删除指定 OAuth 令牌，留下管理与 OAuth 操作记录 |
 | GET | `/api/admin/audit-logs` | 登录 | **跨服务审计留痕的唯一读取路由**（catalog / auth / community / storage 的写操作都写 `audit.audit_log`）。作用域分两档：持 `auth.audit.read` 时可按全部条件查（过滤 `service`/`action`/`actor_user_id`/`actor`（用户名前缀）/`target_type`/`target_id`/`result`/`from`/`to`/`request_id`）；其余登录身份被强制收敛到本人（站点设置页「我的操作记录」），指定他人的 `actor_user_id` 或用 `actor` 前缀一律 403 `forbidden`，第三方 OAuth 令牌同样 403（审计行是本人的安全历史）。匿名 401。分页 `page`/`per_page`（默认 1/50，上限 200），排序 `occurred_at DESC, id DESC`；非法参数 400 `invalid_query:<参数>`。字段与脱敏规则见 [审计留痕契约](https://github.com/MoeclubM/MetaFusion/blob/main/docs/architecture/audit-log.md) |
 | GET | `/api/.well-known/openid-configuration`、`/.well-known/openid-configuration` | 匿名 | OIDC 发现文档（两个入口同一份内容，地址取自 issuer） |
 | GET | `/api/oidc/jwks`、`/.well-known/jwks.json` | 匿名 | 验签公钥（JWKS） |
@@ -60,6 +68,8 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | POST | `/api/developer/apps` | 登录 | 自助登记应用：归属调用者，返回一次性明文 `client_secret`；`trusted` / `disabled` / `verified` 由服务端置 false |
 | GET/PUT/DELETE | `/api/developer/apps/{id}` | 登录 + 归属 | 详情 / 局部更新（名称、简介、主页、回调白名单、scope 白名单）/ 删除；不是自己的应用按 404 处理（管理员同样，没有例外） |
 | POST | `/api/developer/apps/{id}/rotate-secret` | 登录 + 归属 | 轮换该应用密钥，明文只返回一次，旧密钥立即失效 |
+
+凭据、OAuth 授权与令牌的管理列表共用 `limit` / `offset` 分页（默认 50，上限 200），返回 `items`、`total`、`limit`、`offset`、`has_more`。后台入口为 `/credentials`，根据权限展示对应工作面；应用本身仍由 `/oauth-clients` 统一管理。升级时须先显式运行 `auth-server -migrate`，为 OAuth 令牌生成与密钥无关的 UUID；历史未保存的签发时间保持 `null`，新令牌才记录 `created_at`。
 
 限流：业务接口按已验证账号计数，匿名按 IP；读写各自使用固定窗口，**速率与开关来自实例设置**（`auth_rate_limit_enabled` /
 `auth_rate_limit_per_minute`，默认 `true` / 180 次每分钟），已验证 admin 组不计数。`enabled=false` 时不计数直接放行；
@@ -160,8 +170,7 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
 - **`X-API-Key`**：字典里承诺的另一种携带方式由下游服务（目录 / 互动 / 存储）在各自的鉴权中间件里
   解析成同一张令牌再调内省，本服务不额外提供入口。
 - **表与迁移**：显式运行 `auth-server -migrate`；HTTP 启动只读检查。`auth.personal_access_tokens` 的 `purpose` 区分个人和 MCP 凭据，`deleted_at` 隐藏已删除记录；迁移按既有 `mcp.connect` scope 分类旧 MCP 凭据，保留令牌值，不按名称猜测。列形状见 `internal/store/pat_schema_parity_test.go`，真库回归见 `internal/store/access_token_management_postgres_test.go` 与 `internal/handler/pat_postgres_test.go`。
-- **管理他人令牌未做**（`/api/admin/tokens*` 本轮留空）：要做时沿用开发者面那套归属判定 +
-  `auth.oauth_audit` 审计动作，别把"管理员能看全量"塞进 `/api/auth/tokens` 的归属判定里。
+- **管理他人凭据**：后台 `/credentials` 使用独立 `/api/admin/credentials` 管理入口，需 `auth.users.manage`；列表可查看全站元数据，修改/撤销/删除还要求站内会话。共用自助权限校验，操作写入审计。自助 `/api/auth/tokens` 仍只返回本人凭据。
 
 ## OAuth 授权方（同意、scope 与吊销）
 
@@ -336,7 +345,7 @@ AUTH_TEST_DSN='postgres://user:pw@127.0.0.1:5432/metafusion_test?sslmode=disable
   `GET /api/auth/oauth-grants` 自查并撤回（见「吊销」），但同意页仍不做"已授权则跳过"。
 - **RFC 7009 撤销端点没有**；introspection 只对 PAT 有（`POST /api/auth/tokens/introspect`）：
   无状态访问令牌仍是"下游本地验签 + 等 15 分钟自然过期"，PAT 走的才是可撤销的内省路径。
-- **PAT 的管理面未做**：管理员无法列出 / 吊销他人的令牌（本轮只做自助 + 内省）。
+- **管理员凭据清单**：后台 `/credentials` 可按用户、类型与状态管理 PAT/MCP 凭据，并查看或撤销 OAuth 授权及令牌；只返回掩码与独立管理 ID。
 - **jti 注销集合是单实例内存实现**：多副本部署需要共享状态（Redis 集合），当前未支持。
 - **公开资料只有账号列**：`auth.users` 里没有 `display_name` / `avatar_url` / `bio` / `created_at` /
   `favorites_public` 这些展示列，`GET /api/users/:id` 因此**不返回**它们，也不填占位值——

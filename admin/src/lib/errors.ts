@@ -123,3 +123,22 @@ export const AUDIT_ERROR_KEYS: Record<string, string> = {
   invalid_query: "audit.err.invalidQuery",
   forbidden: "audit.err.forbidden",
 };
+
+export const CREDENTIAL_ERROR_KEYS: Record<string, string> = {
+  invalid_query: "credentials.err.invalidQuery",
+  invalid_owner_id: "credentials.err.invalidQuery",
+  invalid_limit: "credentials.err.invalidQuery",
+  invalid_offset: "credentials.err.invalidQuery",
+  invalid_kind: "credentials.err.invalidQuery",
+  invalid_status: "credentials.err.invalidQuery",
+  invalid_token_name: "credentials.err.invalidName",
+  invalid_scopes: "credentials.err.invalidScopes",
+  invalid_scope: "credentials.err.invalidScopes",
+  forbidden_pat_scope: "credentials.err.invalidScopes",
+  scope_not_granted: "credentials.err.invalidScopes",
+  token_not_found: "credentials.err.notFound",
+  grant_not_found: "credentials.err.notFound",
+  invalid_payload: "credentials.err.invalidPayload",
+  invalid_request: "credentials.err.invalidPayload",
+  invalid_revoke_target: "credentials.err.invalidPayload",
+};
