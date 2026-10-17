@@ -240,7 +240,8 @@ func TestTokenIntrospectReturnsPrincipal(t *testing.T) {
 	principal := &store.PATPrincipal{
 		TokenID: testPATID, TokenName: "CI 编目",
 		UserID: "77777777-7777-7777-7777-777777777777", Username: "member", Permissions: []string{"catalog.entity.edit"}, Scopes: []string{"catalog.entity.edit"},
-		TokenPrefix: testPATPlain[:12],
+		TokenPrefix:         testPATPlain[:12],
+		CatalogReviewExempt: true,
 	}
 	r, _ := newPATTestServer(t, &fakePATs{plain: testPATPlain, principal: principal})
 	w := doJSON(t, r, http.MethodPost, "/api/auth/tokens/introspect", "", `{"token":"`+testPATPlain+`"}`)
@@ -248,16 +249,17 @@ func TestTokenIntrospectReturnsPrincipal(t *testing.T) {
 		t.Fatalf("内省：%d %s", w.Code, w.Body.String())
 	}
 	var got struct {
-		Valid       bool       `json:"valid"`
-		TokenID     string     `json:"token_id"`
-		TokenName   string     `json:"token_name"`
-		UserID      string     `json:"user_id"`
-		Username    string     `json:"username"`
-		Role        string     `json:"role"`
-		Permissions []string   `json:"permissions"`
-		Scopes      []string   `json:"scopes"`
-		TokenPrefix string     `json:"token_prefix"`
-		ExpiresAt   *time.Time `json:"expires_at"`
+		Valid               bool       `json:"valid"`
+		TokenID             string     `json:"token_id"`
+		TokenName           string     `json:"token_name"`
+		CatalogReviewExempt bool       `json:"catalog_review_exempt"`
+		UserID              string     `json:"user_id"`
+		Username            string     `json:"username"`
+		Role                string     `json:"role"`
+		Permissions         []string   `json:"permissions"`
+		Scopes              []string   `json:"scopes"`
+		TokenPrefix         string     `json:"token_prefix"`
+		ExpiresAt           *time.Time `json:"expires_at"`
 	}
 	decodeInto(t, w, &got)
 	if !got.Valid || got.UserID != principal.UserID || got.Username != principal.Username {
@@ -265,6 +267,9 @@ func TestTokenIntrospectReturnsPrincipal(t *testing.T) {
 	}
 	if got.TokenID != testPATID || got.TokenName != "CI 编目" {
 		t.Fatalf("内省应回令牌身份 token_id/token_name：%+v", got)
+	}
+	if !got.CatalogReviewExempt {
+		t.Fatal("introspection dropped the account's catalog review exemption")
 	}
 	if len(got.Permissions) != 1 || got.Permissions[0] != "catalog.entity.edit" || got.TokenPrefix != principal.TokenPrefix {
 		t.Fatalf("内省权限/前缀不符：%+v", got)

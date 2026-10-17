@@ -27,6 +27,51 @@ import (
 
 const patTestPassword = "pat-store-secret"
 
+func TestPATReviewExemptionFollowsCurrentAccountGroups(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, testutil.DSN(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if err := s.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, group := range []string{"admin", "catalog_admin"} {
+		t.Run(group, func(t *testing.T) {
+			u := patTestUser(t, ctx, s, group)
+			_, key, err := s.CreatePersonalAccessToken(ctx, u, "scoped editor", []string{"catalog.entity.edit"}, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err := s.IntrospectPersonalAccessToken(ctx, key)
+			if err != nil || !p.CatalogReviewExempt || !reflect.DeepEqual(p.Permissions, []string{"catalog.entity.edit"}) {
+				t.Fatalf("account exemption must not expand scopes: %+v %v", p, err)
+			}
+			_, delegated, err := s.CreateMCPToken(ctx, u, "MCP editor", []string{"catalog.entity.edit"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err = s.IntrospectPersonalAccessToken(ctx, delegated)
+			if err != nil || !p.CatalogReviewExempt || HasPermission(p.Permissions, "catalog.review.bypass") {
+				t.Fatalf("MCP exemption must follow its account without a bypass scope: %+v %v", p, err)
+			}
+			if _, err := s.DB.ExecContext(ctx, "DELETE FROM auth.user_groups WHERE user_id=$1", u.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.DB.ExecContext(ctx, "INSERT INTO auth.user_groups(user_id,group_id) SELECT $1,id FROM auth.groups WHERE code='catalog_editor'", u.ID); err != nil {
+				t.Fatal(err)
+			}
+			for _, secret := range []string{key, delegated} {
+				p, err := s.IntrospectPersonalAccessToken(ctx, secret)
+				if err != nil || p.CatalogReviewExempt || !HasPermission(p.Permissions, "catalog.entity.edit") {
+					t.Fatalf("removing exemption must affect existing credentials: %+v %v", p, err)
+				}
+			}
+		})
+	}
+}
+
 // patPlainRe 是明文格式的验收：mfp_ + 32 字节熵的 base62 定长表示（62^43 > 2^256）。
 var patPlainRe = regexp.MustCompile("^mfp_[0-9A-Za-z]{" + fmt.Sprint(patSecretChars) + "}$")
 

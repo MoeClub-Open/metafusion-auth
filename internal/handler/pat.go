@@ -255,7 +255,8 @@ func (h *Handler) registerTokens(api *gin.RouterGroup) {
 				"user_id": p.UserID, "username": p.Username,
 				"groups":      p.Groups,
 				"permissions": p.Permissions, "scopes": p.Scopes,
-				"token_prefix": p.TokenPrefix, "expires_at": p.ExpiresAt,
+				"catalog_review_exempt": p.CatalogReviewExempt,
+				"token_prefix":          p.TokenPrefix, "expires_at": p.ExpiresAt,
 			})
 		case errors.Is(err, store.ErrInvalidPAT):
 			if byIP.use(c.ClientIP(), now) || byToken.use(store.HashPersonalAccessToken(in.Token), now) {

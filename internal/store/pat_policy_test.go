@@ -22,7 +22,7 @@ func TestMachineAndThirdPartyActorsCannotManageCredentials(t *testing.T) {
 
 func TestNewPATCannotDelegateManagement(t *testing.T) {
 	admin := &User{ID: "admin-test", Permissions: []string{"*"}}
-	for _, scope := range []string{"*", "auth.users.manage", "catalog.definitions.manage", "catalog.lifecycle.manage", "community.rate_limits.manage", "future.configuration.manage"} {
+	for _, scope := range []string{"*", "catalog.review.bypass", "auth.users.manage", "catalog.definitions.manage", "catalog.lifecycle.manage", "community.rate_limits.manage", "future.configuration.manage"} {
 		if _, err := NormalizePATScopes([]string{"catalog.entity.edit", scope}, admin); err == nil || err.Error() != "forbidden_pat_scope" {
 			t.Fatalf("management scope %q: %v", scope, err)
 		}

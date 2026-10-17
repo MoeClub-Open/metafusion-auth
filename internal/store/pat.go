@@ -94,13 +94,13 @@ type PATPrincipal struct {
 	Groups    []string `json:"groups"`
 	// Permissions 是**有效权限**：账号现时权限 ∩ 该 PAT 的 scopes。创建时 scopes 至少一项，
 	// 但账号权限被收回后交集可能为空（空数组）——那正是最危险的一格：
-	// 下游必须以它为准，且只能用 HasPermission(perms, code) 语义；
-	// Can(user, code) 在 permissions 为空时会按 role 兜底到 admin/editor，等于把"什么都做不了"
-	// 的令牌变成全权令牌。
-	Permissions []string   `json:"permissions"`
-	Scopes      []string   `json:"scopes"`
-	ExpiresAt   *time.Time `json:"expires_at"`
-	TokenPrefix string     `json:"token_prefix"`
+	// 下游必须以它为准，空集合不得按组名或角色回退到编辑/管理能力。
+	Permissions []string `json:"permissions"`
+	// Account review eligibility is independent of delegated operation scopes.
+	CatalogReviewExempt bool       `json:"catalog_review_exempt"`
+	Scopes              []string   `json:"scopes"`
+	ExpiresAt           *time.Time `json:"expires_at"`
+	TokenPrefix         string     `json:"token_prefix"`
 }
 
 // newPATPlaintext 生成一张新令牌的明文：mfp_ + 32 字节随机数的 base62 定长表示
@@ -161,9 +161,9 @@ func NormalizePATScopes(scopes []string, actor *User) ([]string, error) {
 		if !ValidPermissionCode(s) {
 			return nil, fmt.Errorf("invalid_scope: %s", s)
 		}
-		// 管理权限与通配权限仅供站内会话使用，不可委托给新机器令牌。
+		// 管理权限与通配权限仅供站内会话使用；免审是账号资格，均不作为新机器令牌 scope。
 		// 此处只限制签发；现有 PAT 的内省仍按原有权限交集计算。
-		if s == WildcardPermission || strings.HasSuffix(s, ".manage") {
+		if s == WildcardPermission || s == "catalog.review.bypass" || strings.HasSuffix(s, ".manage") {
 			return nil, fmt.Errorf("forbidden_pat_scope")
 		}
 		if seen[s] {
@@ -389,9 +389,10 @@ func (s *Store) IntrospectPersonalAccessToken(ctx context.Context, token string)
 	p := &PATPrincipal{
 		TokenID: tokenID, TokenName: tokenName,
 		UserID: userID, Username: username,
-		Groups:      u.Groups,
-		Permissions: EffectivePATPermissions(&u, scopes),
-		Scopes:      scopes, TokenPrefix: patPrefixOf(token),
+		Groups:              u.Groups,
+		Permissions:         EffectivePATPermissions(&u, scopes),
+		CatalogReviewExempt: Can(&u, "catalog.review.bypass"),
+		Scopes:              scopes, TokenPrefix: patPrefixOf(token),
 	}
 	if p.Permissions == nil {
 		p.Permissions = []string{}
