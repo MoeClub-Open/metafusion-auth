@@ -30,6 +30,8 @@ func auditActions() map[string]string {
 		"POST /api/auth/register":                         "session.registered",
 		"POST /api/auth/logout-all":                       "user.sessions_revoked",
 		"PUT /api/auth/password":                          "user.password_changed",
+		"PUT /api/auth/avatar":                            "user.avatar_updated",
+		"DELETE /api/auth/avatar":                         "user.avatar_removed",
 		"PUT /api/auth/profile":                           "user.profile_updated",
 		"PATCH /api/auth/privacy":                         "user.privacy_updated",
 		"POST /api/auth/invite":                           "invite.self_created",
@@ -97,10 +99,7 @@ func (h *Handler) auditMiddleware() gin.HandlerFunc {
 
 // auditActor 解析当前请求的操作者。
 //
-// credential_type 只能给 session / anonymous：本服务签发的会话令牌与 OAuth 访问令牌是同密钥、
-// 同声明的 RS256 JWT（见 store.signOAuthToken），仅凭令牌内容区分不了，要区分就得在每个写请求上
-// 多查一次 auth.oauth_tokens——不值得。PAT 也不会出现在这里：PAT 不是登录态，/api/auth/* 一律
-// 不受理（见 pat.go 包注释）。契约文档已按实际能力修正。
+// 使用认证中间件已验证的 TokenUse / IsThirdParty 判定凭据来源，不再额外查令牌表。
 func (h *Handler) auditActor(c *gin.Context) audit.Actor {
 	u := currentUser(c)
 	if u == nil {
@@ -109,6 +108,8 @@ func (h *Handler) auditActor(c *gin.Context) audit.Actor {
 	kind := audit.CredentialSession
 	if u.TokenUse == "pat" {
 		kind = audit.CredentialPAT
+	} else if u.IsThirdParty() {
+		kind = audit.CredentialOAuth
 	}
 	return audit.Actor{UserID: u.ID, Username: u.Username, CredentialType: kind}
 }

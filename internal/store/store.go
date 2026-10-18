@@ -25,6 +25,7 @@ type User struct {
 	// 昵称与简介：空串=未设置（前端回退用户名/占位），omitempty 保持既有载荷形状。
 	DisplayName string `json:"display_name,omitempty"`
 	Bio         string `json:"bio,omitempty"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
 	// JWT 与第三方身份不持有实时隐私偏好；只有回表后的账号响应才下发它们。
 	FavoritesPublic *bool    `json:"favorites_public,omitempty"`
 	EmailPublic     *bool    `json:"email_public,omitempty"`
@@ -87,6 +88,7 @@ ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS bio text NOT NULL DEFAULT '';
 -- 用户隐私偏好不属于实例准入设置。升级保留收藏原先公开、邮箱仅本人可见的行为。
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS favorites_public boolean NOT NULL DEFAULT true;
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_public boolean NOT NULL DEFAULT false;
+CREATE TABLE IF NOT EXISTS auth.user_avatars (user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE, data bytea NOT NULL CHECK (octet_length(data)<=2097152), version text NOT NULL);
 CREATE TABLE IF NOT EXISTS auth.sessions (
  token_hash text PRIMARY KEY, user_id uuid NOT NULL REFERENCES auth.users(id), expires_at timestamptz NOT NULL
 );

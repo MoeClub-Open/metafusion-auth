@@ -74,6 +74,7 @@ func (h *Handler) Register(r *gin.Engine) {
 	h.registerAdminCredentials(api)
 	// 公开账号资料 GET /users/:id（匿名可读，email 按用户公开偏好裁剪）。
 	h.registerPublicUsers(api)
+	h.registerAvatar(api)
 	// 审计读取面 GET /admin/audit-logs（跨服务审计的唯一读取端点）。
 	h.registerAudit(api)
 

@@ -387,3 +387,9 @@ compose 与网关由主仓库负责，本仓库只保证端口、basePath 与健
 云端 MCP 通过现有 API 操作本服务；信息获取由 Agent 决定。业务读写默认各 180 RPM，验证 admin 组免业务限流，PAT 内省包含现时 groups，业务权限仍按 permissions 检查。连接池默认 32/16；计数为每进程固定窗口。
 
 PAT/MCP 内省还返回账号当前的 `catalog_review_exempt`（依据账号是否持有 `catalog.review.bypass`），与操作权限交集分别传递。管理员和其他免审组的编辑 Key 无需单独授权免审；新 Key scopes 不接受该码。下游仍逐项检查编辑权限，只读 Key 不因账号免审而可写，账号组变化随至多 60 秒的内省缓存生效。账号服务和目录服务须一起升级。
+
+### 用户头像
+
+`PUT /api/auth/avatar` 接收 multipart 字段 `avatar`（PNG/JPEG/GIF，最多 2 MiB），仅能修改本人头像。图片解码后统一重新编码为 PNG，拒绝 SVG、损坏图片及过大的像素尺寸。前端支持 PNG/JPEG/WebP/GIF 本地选图，预览时居中裁成 512×512，再上传 PNG。`DELETE /api/auth/avatar` 移除本人头像。两种写操作均记录操作日志。
+
+小尺寸头像归账号资料所有，保存于 `auth.user_avatars`，不进入资料 JSON 或 JWT。第一方 `/auth/me` 与公开资料只返回带内容版本的 `avatar_url`；公开 `GET /api/users/{id}/avatar?v={version}` 提供图片、ETag 与条件读取，错误版本或不存在返回 404。升级使用 `auth-server -migrate`，HTTP 启动只读检查该表。网关将用户资料与 avatar 子路由交给账号服务，贡献与互动路由保持原归属。

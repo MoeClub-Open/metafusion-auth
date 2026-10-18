@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // AuditUserSnapshot 是写审计摘要用的用户快照（含 email：它由 audit 包统一遮罩成
@@ -120,10 +122,10 @@ func auditWhere(q AuditQuery) (string, []any) {
 		conds = append(conds, fmt.Sprintf(cond, len(args)))
 	}
 	if len(q.Services) > 0 {
-		add("service = ANY($%d)", q.Services)
+		add("service = ANY($%d)", pq.Array(q.Services))
 	}
 	if len(q.Actions) > 0 {
-		add("action = ANY($%d)", q.Actions)
+		add("action = ANY($%d)", pq.Array(q.Actions))
 	}
 	if q.ActorUserID != "" {
 		add("actor_user_id = NULLIF($%d,'')::uuid", q.ActorUserID)

@@ -35,6 +35,8 @@ func TestAccessRoutesExistAndEnforceAuth(t *testing.T) {
 	}
 	protected := append(admin, []struct{ method, path string }{
 		{http.MethodPut, "/api/auth/profile"},
+		{http.MethodPut, "/api/auth/avatar"},
+		{http.MethodDelete, "/api/auth/avatar"},
 		{http.MethodPut, "/api/auth/password"},
 		{http.MethodPost, "/api/auth/logout-all"},
 		{http.MethodGet, "/api/auth/oauth-grants"},

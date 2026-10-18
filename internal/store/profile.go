@@ -23,6 +23,7 @@ type PublicUser struct {
 	// 昵称与简介是公开资料的一部分（空串=未设置，前端回退用户名/占位）。
 	DisplayName string `json:"display_name,omitempty"`
 	Bio         string `json:"bio,omitempty"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
 	// Banned 沿用 User.Banned 的 omitempty 口径：只在为真时下发。
 	//
 	// 被 ban 的账号照样返回资料，只带上"已停用"这个事实：封禁是访问控制（不能登录/续期/验签），
@@ -84,8 +85,8 @@ func (s *Store) UpdateProfile(ctx context.Context, userID, displayName, bio stri
 		return out, fmt.Errorf("invalid_bio")
 	}
 	err := s.DB.QueryRowContext(ctx,
-		"UPDATE auth.users SET display_name=$2,bio=$3 WHERE id=$1 RETURNING id,username,display_name,bio,favorites_public,email_public",
-		userID, displayName, bio).Scan(&out.ID, &out.Username, &out.DisplayName, &out.Bio, &out.FavoritesPublic, &out.EmailPublic)
+		"UPDATE auth.users SET display_name=$2,bio=$3 WHERE id=$1 RETURNING id,username,display_name,bio,favorites_public,email_public,"+avatarURLSQL,
+		userID, displayName, bio).Scan(&out.ID, &out.Username, &out.DisplayName, &out.Bio, &out.FavoritesPublic, &out.EmailPublic, &out.AvatarURL)
 	if err != nil {
 		return out, err // 含 sql.ErrNoRows → 404（账号在令牌有效期内被删）
 	}
@@ -99,8 +100,8 @@ func (s *Store) FillProfile(ctx context.Context, u *User) error {
 		return sql.ErrNoRows
 	}
 	return s.DB.QueryRowContext(ctx,
-		"SELECT COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public FROM auth.users WHERE id=$1", u.ID).
-		Scan(&u.DisplayName, &u.Bio, &u.FavoritesPublic, &u.EmailPublic)
+		"SELECT COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public,"+avatarURLSQL+" FROM auth.users WHERE id=$1", u.ID).
+		Scan(&u.DisplayName, &u.Bio, &u.FavoritesPublic, &u.EmailPublic, &u.AvatarURL)
 }
 
 func (s *Store) PublicProfile(ctx context.Context, id, viewerID string) (PublicProfile, error) {
@@ -119,8 +120,8 @@ func (s *Store) PublicProfile(ctx context.Context, id, viewerID string) (PublicP
 	id = uid.String()
 	var banned bool
 	err = s.DB.QueryRowContext(ctx,
-		"SELECT id,username,COALESCE(email,''),banned,COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public FROM auth.users WHERE id=$1", id).
-		Scan(&out.User.ID, &out.User.Username, &out.User.Email, &banned, &out.User.DisplayName, &out.User.Bio, &out.User.FavoritesPublic, &out.User.EmailPublic)
+		"SELECT id,username,COALESCE(email,''),banned,COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public,"+avatarURLSQL+" FROM auth.users WHERE id=$1", id).
+		Scan(&out.User.ID, &out.User.Username, &out.User.Email, &banned, &out.User.DisplayName, &out.User.Bio, &out.User.FavoritesPublic, &out.User.EmailPublic, &out.User.AvatarURL)
 	if err != nil {
 		return out, err // 含 sql.ErrNoRows → 404
 	}

@@ -9,6 +9,7 @@ import (
 // or seed/backfill permissions. Existing instances must run auth-server -migrate.
 func (s *Store) CheckSchema(ctx context.Context) error {
 	checks := []string{
+		`SELECT user_id,data,version FROM auth.user_avatars LIMIT 0`,
 		`SELECT id,username,email,password_hash,banned,display_name,bio,favorites_public,email_public FROM auth.users LIMIT 0`,
 		`SELECT token_hash,user_id,expires_at FROM auth.sessions LIMIT 0`,
 		`SELECT id,secret_hash,name,redirect_uris,trusted,scopes,disabled,owner_user_id,description,homepage_url,verified,created_at FROM auth.oauth_clients LIMIT 0`,
