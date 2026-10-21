@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -18,7 +19,7 @@ import (
 
 // 登录失败保护（login_guard.go）的行为口径，全部走 HTTP 中间件本身：
 //
-//	账号维度：15 分钟窗口内失败满 5 次起 429 login_blocked + Retry-After，窗口过后自动恢复；
+//	账号维度：只退避，不因其他来源的失败而硬锁账号；
 //	IP 维度：同窗口内失败满 20 次起拦（兜住"每账号只试几次"的账号喷洒）；
 //	递增延迟：失败 3 次起 200ms/400ms…封顶 2s，只在已有失败史时产生。
 //
@@ -52,22 +53,32 @@ func loginAttempt(t *testing.T, r *gin.Engine, username string) *httptest.Respon
 	return doJSON(t, r, http.MethodPost, "/api/auth/login", "", body)
 }
 
-// 账号维度：连续错 5 次仍 401（普通用户不能被立刻锁死），第 6 次起 429 login_blocked 并带
-// Retry-After；窗口内持续拒绝，窗口过后自动恢复。
-func TestLoginGuardBlocksBruteforceByAccount(t *testing.T) {
+// 重现报告中的五次匿名失败：下一次仍必须进入凭据校验，不能锁死账号。
+func TestLoginGuardAccountFailuresDoNotHardLock(t *testing.T) {
 	now := time.Now()
-	r, _ := newLoginGuardTestServer(t, &now)
-
-	for i := 1; i <= loginGuardAccountMaxFailure; i++ {
-		w := loginAttempt(t, r, "uiwalk-bruteforce")
-		if w.Code != http.StatusUnauthorized {
-			t.Fatalf("第 %d 次失败应是 401（普通用户不能被立刻锁死），实际 %d / %s", i, w.Code, w.Body.String())
-		}
+	r, guard := newLoginGuardTestServer(t, &now)
+	keys := loginIdentifiers(loginPayload{Username: "uiwalk-bruteforce"})
+	for i := 0; i < 5; i++ {
+		guard.recordFailure(keys, "198.51.100.7")
 	}
+	w := loginAttempt(t, r, "uiwalk-bruteforce")
+	if w.Code != http.StatusUnauthorized || w.Header().Get("Retry-After") != "" {
+		t.Fatalf("账号失败不能硬锁后续登录: %d %s", w.Code, w.Body.String())
+	}
+}
 
+func TestLoginGuardHTTPBlocksOnlyFailingSource(t *testing.T) {
+	now := time.Now()
+	r, guard := newLoginGuardTestServer(t, &now)
+	// doJSON uses this source address. Seed counters to avoid repeated bcrypt/delays.
+	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", nil)
+	ip, _, _ := net.SplitHostPort(request.RemoteAddr)
+	for i := 0; i < loginGuardIPMaxFailure; i++ {
+		guard.recordFailure([]string{"uiwalk-bruteforce"}, ip)
+	}
 	w := loginAttempt(t, r, "uiwalk-bruteforce")
 	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("第 %d 次应被 429 拦下，实际 %d / %s", loginGuardAccountMaxFailure+1, w.Code, w.Body.String())
+		t.Fatalf("失败来源应被 429 拦下，实际 %d / %s", w.Code, w.Body.String())
 	}
 	if got := w.Header().Get("Retry-After"); got == "" {
 		t.Fatal("429 必须带 Retry-After，客户端才知道退避多久")
@@ -93,8 +104,7 @@ func TestLoginGuardBlocksBruteforceByAccount(t *testing.T) {
 	}
 }
 
-// IP 维度：每个账号只错 4 次（不到账号阈值），同一来源累计满 20 次后必须被拦——
-// 否则"每账号试几次就换下一个"的账号喷洒永远不会碰到账号维度。
+// IP 维度：每个账号只错 4 次，同一来源累计满 20 次后仍必须拦住账号喷洒。
 //
 // 走 guard 的公开判定面而不是 20 次 HTTP 请求：每次失败登录的 bcrypt 比较要 1.4s 左右，
 // 20 次会把这条用例拖到 30s；中间件接线由本文件其余用例覆盖。
@@ -126,16 +136,16 @@ func TestLoginGuardBlocksBruteforceByIP(t *testing.T) {
 		t.Fatal("窗口过后 IP 维度应自动恢复")
 	}
 
-	// 账号维度：前 5 次失败仍可重试，第 6 次起被拦——与 HTTP 用例同一口径，这里直接对判定面断言。
+	// 即使多个来源累计超过 IP 阈值，账号也只有封顶延迟；新来源仍可校验口令。
 	account := loginIdentifiers(loginPayload{Username: "spray-account"})
-	for i := 0; i < loginGuardAccountMaxFailure; i++ {
+	for i := 0; i < loginGuardIPMaxFailure+5; i++ {
 		if blocked, _, _ := guard.check(account, ""); blocked {
 			t.Fatalf("账号第 %d 次失败仍应可重试（不能把普通用户锁死）", i+1)
 		}
 		guard.recordFailure(account, "")
 	}
-	if blocked, _, _ := guard.check(account, ""); !blocked {
-		t.Fatalf("账号失败满 %d 次后应被拦", loginGuardAccountMaxFailure)
+	if blocked, _, delay := guard.check(account, "198.51.100.8"); blocked || delay != loginGuardDelayMax {
+		t.Fatalf("新来源不应因账号计数被硬锁: blocked=%v delay=%v", blocked, delay)
 	}
 }
 

@@ -81,7 +81,7 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 改设置立即生效（策略有 5 秒短缓存，写设置时作废）。超限返回 429 `rate_limited` 与 `Retry-After`（秒）。
 PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两个设置），见「个人访问令牌」。
 
-登录失败保护另按账号标识与 IP 累计：15 分钟固定窗口内账号失败满 5 次、IP 失败满 20 次，后续请求返回 `429 login_blocked` 与 `Retry-After`；失败满 3 次起追加 200ms 至 2s 的递增延迟。计数保存于 `auth.login_failures`，所有副本使用数据库时钟和原子增量，重启不会清零；成功登录只清除账号计数，IP 计数随窗口恢复。标识在计数表中仅以维度化 SHA-256 保存。数据库查询、失败记账或成功清零失败均返回 `503 login_guard_unavailable`，不回退到进程内计数。
+登录失败保护另按账号标识与 IP 累计：15 分钟固定窗口内同一 IP 失败满 20 次，后续请求返回 `429 login_blocked` 与 `Retry-After`；账号计数只用于退避，不硬锁账号，避免匿名失败阻止其他来源正确登录。账号或 IP 失败满 3 次起追加 200ms 至 2s 的递增延迟。计数保存于 `auth.login_failures`，所有副本使用数据库时钟和原子增量，重启不会清零；成功登录只清除账号计数，IP 计数随窗口恢复。共享出口上的用户共用 IP 预算。标识在计数表中仅以维度化 SHA-256 保存。数据库查询、失败记账或成功清零失败均返回 `503 login_guard_unavailable`，不回退到进程内计数。
 
 实例设置（`GET/PUT /api/admin/settings`）当前只认 6 个键：`registration_enabled`、`invite_required`、
 `require_email_verification`、`auth_rate_limit_enabled`、`auth_rate_limit_per_minute`、

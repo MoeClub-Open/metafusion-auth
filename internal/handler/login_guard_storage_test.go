@@ -53,12 +53,12 @@ func TestLoginGuardStorageFailureNeverFallsBackToMemory(t *testing.T) {
 	}
 }
 
-func TestLoginGuardRespectsSharedAccountAndIPWindows(t *testing.T) {
+func TestLoginGuardRespectsSharedIPWindowWithoutAccountLock(t *testing.T) {
 	for _, tc := range []struct {
 		dimension string
 		count     int
 	}{
-		{"account", loginGuardAccountMaxFailure},
+		{"account", 100},
 		{"ip", loginGuardIPMaxFailure},
 	} {
 		t.Run(tc.dimension, func(t *testing.T) {
@@ -66,6 +66,12 @@ func TestLoginGuardRespectsSharedAccountAndIPWindows(t *testing.T) {
 			r, guard := newLoginGuardTestServer(t, &now)
 			guard.persistence = &failingLoginStorage{buckets: []store.LoginFailureBucket{{Dimension: tc.dimension, Failures: tc.count, RetryAfter: 93 * time.Second}}}
 			w := loginAttempt(t, r, "shared-window")
+			if tc.dimension == "account" {
+				if w.Code != http.StatusUnauthorized || w.Header().Get("Retry-After") != "" {
+					t.Fatalf("shared account failures hard-locked login: %d %s", w.Code, w.Body.String())
+				}
+				return
+			}
 			if w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") != "93" || !strings.Contains(w.Body.String(), "login_blocked") {
 				t.Fatalf("shared block ignored: %d %s %s", w.Code, w.Header().Get("Retry-After"), w.Body.String())
 			}

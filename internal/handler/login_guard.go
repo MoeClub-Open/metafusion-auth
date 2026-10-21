@@ -28,9 +28,7 @@ import (
 //
 // 阈值/窗口/恢复（写死在代码里，不做成实例设置——再加一组可调上限，只会让"这次到底哪层拦的"更难查）：
 //
-//	账号维度：15 分钟固定窗口内失败满 5 次起拒绝，返回 429 + Retry-After（窗口剩余秒数），
-//	  窗口结束自动恢复（新窗口从零开始）。计数写在"第 5 次失败"时，所以连续输错 4~5 次的
-//	  普通用户仍能拿正确口令登录，不会被锁死。
+//	账号维度：只产生封顶 2s 的递增延迟，不硬锁账号。匿名失败不能阻止其他来源校验正确口令。
 //	IP 维度：同一窗口内失败满 20 次起拒绝，用于兜住"每个账号只试 4 次就换下一个"的口令喷洒——
 //	  只按账号计数时这种打法永远不会触发。
 //
@@ -42,10 +40,9 @@ import (
 // 查询或记账失败返回 503 login_guard_unavailable，不绕过失败凭据防护。
 // 进程内实现仅用于可控时钟单元测试；不作为数据库故障时的回退。
 const (
-	loginGuardWindow            = 15 * time.Minute
-	loginGuardAccountMaxFailure = 5
-	loginGuardIPMaxFailure      = 20
-	// 延迟从第 3 次失败起：阈值是 5，留两次余量，普通人手滑几下的体验不至于太差。
+	loginGuardWindow       = 15 * time.Minute
+	loginGuardIPMaxFailure = 20
+	// 账号和 IP 都从第 3 次失败起产生延迟。
 	loginGuardDelayAfterFailure = 3
 	loginGuardDelayBase         = 200 * time.Millisecond
 	loginGuardDelayMax          = 2 * time.Second
@@ -64,7 +61,6 @@ type loginBucket struct {
 type loginGuard struct {
 	persistence loginFailureStore
 	window      time.Duration
-	accountMax  int
 	ipMax       int
 	// now 可被用例换成假时钟，窗口过期与递增延迟才能被确定性地断言。
 	now func() time.Time
@@ -99,11 +95,7 @@ func (g *loginGuard) checkContext(ctx context.Context, keys []string, ip string)
 	}
 	blocked, retry, worst := false, time.Duration(0), 0
 	for _, bucket := range buckets {
-		limit := g.accountMax
-		if bucket.Dimension == "ip" {
-			limit = g.ipMax
-		}
-		if bucket.Failures >= limit {
+		if bucket.Dimension == "ip" && bucket.Failures >= g.ipMax {
 			blocked = true
 			if bucket.RetryAfter > retry {
 				retry = bucket.RetryAfter
@@ -158,12 +150,11 @@ func completeLoginAttempt(c *gin.Context, loginErr error) bool {
 
 func newLoginGuard() *loginGuard {
 	return &loginGuard{
-		window:     loginGuardWindow,
-		accountMax: loginGuardAccountMaxFailure,
-		ipMax:      loginGuardIPMaxFailure,
-		now:        time.Now,
-		accounts:   map[string]*loginBucket{},
-		ips:        map[string]*loginBucket{},
+		window:   loginGuardWindow,
+		ipMax:    loginGuardIPMaxFailure,
+		now:      time.Now,
+		accounts: map[string]*loginBucket{},
+		ips:      map[string]*loginBucket{},
 	}
 }
 
@@ -210,10 +201,6 @@ func (g *loginGuard) check(keys []string, ip string) (blocked bool, retryAfter, 
 		if b == nil {
 			continue
 		}
-		if b.failures >= g.accountMax && !blocked {
-			blocked = true
-			retryAfter = g.remainingLocked(b, now)
-		}
 		if b.failures > worst {
 			worst = b.failures
 		}
@@ -237,7 +224,7 @@ func (g *loginGuard) check(keys []string, ip string) (blocked bool, retryAfter, 
 	return false, 0, loginGuardDelay(worst)
 }
 
-// recordFailure 记一次凭据失败：账号与 IP 两个维度同时累加，任一维度到阈值都会拦。
+// recordFailure 同时累计账号与 IP；账号仅退避，IP 到阈值才拒绝。
 func (g *loginGuard) recordFailure(keys []string, ip string) {
 	now := g.now()
 	g.mu.Lock()

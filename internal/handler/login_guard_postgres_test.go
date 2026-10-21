@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -77,7 +78,7 @@ func TestLoginGuardHTTPSharedAndResetAgainstPostgres(t *testing.T) {
 		r.ServeHTTP(response, request)
 		return response
 	}
-	for i := 0; i < loginGuardAccountMaxFailure; i++ {
+	for i := 0; i < 5; i++ {
 		r := r1
 		if i%2 != 0 {
 			r = r2
@@ -87,10 +88,10 @@ func TestLoginGuardHTTPSharedAndResetAgainstPostgres(t *testing.T) {
 		}
 	}
 	// A newly constructed HTTP engine shares prior replicas' failures.
-	if w := login(engine(second, nil), missing, "wrong"); w.Code != http.StatusTooManyRequests || !strings.Contains(w.Body.String(), "login_blocked") {
-		t.Fatalf("new replica bypassed shared failure limit: %d %s", w.Code, w.Body.String())
+	if w := login(engine(second, nil), missing, "wrong"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("new replica hard-locked account: %d %s", w.Code, w.Body.String())
 	}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 5; i++ {
 		if w := login(r1, username, "wrong"); w.Code != http.StatusUnauthorized {
 			t.Fatalf("existing account wrong password: %d", w.Code)
 		}
@@ -99,8 +100,26 @@ func TestLoginGuardHTTPSharedAndResetAgainstPostgres(t *testing.T) {
 		t.Fatalf("successful login failed: %d %s", w.Code, w.Body.String())
 	}
 	buckets, err := first.LoginFailureBuckets(ctx, []string{username}, ip)
-	if err != nil || len(buckets) != 1 || buckets[0].Dimension != "ip" || buckets[0].Failures != 7 {
+	if err != nil || len(buckets) != 1 || buckets[0].Dimension != "ip" || buckets[0].Failures != 11 {
 		t.Fatalf("HTTP success did not reset only account failures: %+v %v", buckets, err)
+	}
+	// The attacker's source is blocked across replicas, while another source can
+	// still authenticate with the correct password despite the shared account count.
+	for i := 11; i < loginGuardIPMaxFailure; i++ {
+		if err := first.RecordLoginFailure(ctx, []string{username}, ip, 15*time.Minute); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if w := login(engine(second, nil), username, password); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("source budget not shared: %d %s", w.Code, w.Body.String())
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(fmt.Sprintf(`{"username":%q,"password":%q}`, username, password)))
+	request.Header.Set("Content-Type", "application/json")
+	request.RemoteAddr = "198.51.100.202:1234"
+	victim := httptest.NewRecorder()
+	r2.ServeHTTP(victim, request)
+	if victim.Code != http.StatusOK || victim.Header().Get("Set-Cookie") == "" {
+		t.Fatalf("another source was locked: %d %s", victim.Code, victim.Body.String())
 	}
 	// Clearing a successful login must finish before the token/cookie is sent.
 	broken := engine(first, &failingLoginStorage{clearErr: errors.New("database offline")})
