@@ -3,9 +3,8 @@
 /* 配色与表面色调的变量块由 scripts/gen-theme.mjs 生成（唯一来源见 scripts/theme-palette.mjs） */
 @import "./theme.generated.css";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "./tailwind.config.ts";
 
 @layer components {
   .mf-focus {
