@@ -109,7 +109,7 @@ func (s *Store) Login(ctx context.Context, username, password string) (string, U
 	var stored string
 	var banned bool
 	var matches int
-	err := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),password_hash,banned,COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public,count(*) OVER () FROM auth.users WHERE lower(username)=lower($1) OR (email=$1 AND email<>'')", strings.TrimSpace(username)).Scan(&u.ID, &u.Username, &u.Email, &stored, &banned, &u.DisplayName, &u.Bio, &u.FavoritesPublic, &u.EmailPublic, &matches)
+	err := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),password_hash,banned,COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public,token_version,count(*) OVER () FROM auth.users WHERE lower(username)=lower($1) OR (email=$1 AND email<>'')", strings.TrimSpace(username)).Scan(&u.ID, &u.Username, &u.Email, &stored, &banned, &u.DisplayName, &u.Bio, &u.FavoritesPublic, &u.EmailPublic, &u.TokenVersion, &matches)
 	// Never choose an arbitrary account when a username overlaps another account's email.
 	if err != nil || matches != 1 || bcrypt.CompareHashAndPassword([]byte(stored), []byte(password)) != nil {
 		return "", u, fmt.Errorf("invalid_credentials")
@@ -188,7 +188,7 @@ func (s *Store) Refresh(ctx context.Context, token string) (string, User, error)
 		return "", User{}, fmt.Errorf("invalid_token")
 	}
 	var fresh User
-	if ferr := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public FROM auth.users WHERE id=$1", u.ID).Scan(&fresh.ID, &fresh.Username, &fresh.Email, &fresh.DisplayName, &fresh.Bio, &fresh.FavoritesPublic, &fresh.EmailPublic); ferr != nil {
+	if ferr := s.DB.QueryRowContext(ctx, "SELECT id,username,COALESCE(email,''),COALESCE(display_name,''),COALESCE(bio,''),favorites_public,email_public,token_version FROM auth.users WHERE id=$1", u.ID).Scan(&fresh.ID, &fresh.Username, &fresh.Email, &fresh.DisplayName, &fresh.Bio, &fresh.FavoritesPublic, &fresh.EmailPublic, &fresh.TokenVersion); ferr != nil {
 		return "", User{}, fmt.Errorf("invalid_token")
 	}
 	u = &fresh
@@ -228,25 +228,53 @@ func (s *Store) ChangePassword(ctx context.Context, userID, oldPassword, newPass
 	if err != nil {
 		return err
 	}
-	if _, err = s.DB.ExecContext(ctx, "UPDATE auth.users SET password_hash=$1 WHERE id=$2", string(newHash), userID); err != nil {
+	var revoked []revokedToken
+	err = s.write(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, "UPDATE auth.users SET password_hash=$1 WHERE id=$2", string(newHash), userID); err != nil {
+			return err
+		}
+		// 凭据世代 +1：会话 JWT 携带的 tv 立即对不上；删行让回退查库也失效。
+		if _, err := bumpTokenVersionTx(ctx, tx, userID); err != nil {
+			return err
+		}
+		var err error
+		if revoked, err = issuedTokensFor(ctx, tx, "user_id", userID); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, "DELETE FROM auth.sessions WHERE user_id=$1", userID); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, "DELETE FROM auth.oauth_tokens WHERE user_id=$1", userID)
+		return err
+	})
+	if err != nil {
 		return err
 	}
-	// 改密后作废该用户全部服务端会话与 OAuth 令牌：旧访问令牌验签成功会直接
-	// 放行（15 分钟窗口），必须删会话行才能让回退查库也失效；OAuth 行 30 天有效，
-	// 不删则第三方令牌继续可用。与 ResetUserPassword 行为对齐。
-	if _, err = s.DB.ExecContext(ctx, "DELETE FROM auth.sessions WHERE user_id=$1", userID); err != nil {
-		return err
-	}
-	_, err = s.DB.ExecContext(ctx, "DELETE FROM auth.oauth_tokens WHERE user_id=$1", userID)
-	return err
+	revokeIssued(s.Tokens, revoked)
+	return nil
 }
 
 func (s *Store) LogoutAll(ctx context.Context, userID string) error {
-	if _, err := s.DB.ExecContext(ctx, "DELETE FROM auth.sessions WHERE user_id=$1", userID); err != nil {
+	var revoked []revokedToken
+	err := s.write(ctx, func(tx *sql.Tx) error {
+		if _, err := bumpTokenVersionTx(ctx, tx, userID); err != nil {
+			return err
+		}
+		var err error
+		if revoked, err = issuedTokensFor(ctx, tx, "user_id", userID); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, "DELETE FROM auth.sessions WHERE user_id=$1", userID); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, "DELETE FROM auth.oauth_tokens WHERE user_id=$1", userID)
+		return err
+	})
+	if err != nil {
 		return err
 	}
-	_, err := s.DB.ExecContext(ctx, "DELETE FROM auth.oauth_tokens WHERE user_id=$1", userID)
-	return err
+	revokeIssued(s.Tokens, revoked)
+	return nil
 }
 
 // ── 账号封禁 ──
@@ -339,6 +367,10 @@ func (s *Store) SetUserBanned(ctx context.Context, targetUserID string, banned b
 		if !banned {
 			return nil
 		}
+		// 封禁同样 bump 凭据世代：会话 JWT 不在 oauth_tokens 行里，仅靠 jti 回填盖不住。
+		if _, err := bumpTokenVersionTx(ctx, tx, targetUserID); err != nil {
+			return err
+		}
 		var err error
 		if revoked, err = issuedTokensFor(ctx, tx, "user_id", targetUserID); err != nil {
 			return err
@@ -429,14 +461,64 @@ func (s *Store) ResetUserPassword(ctx context.Context, targetUserID, newPassword
 	if err != nil {
 		return err
 	}
-	res, err := s.DB.ExecContext(ctx, "UPDATE auth.users SET password_hash=$1 WHERE id=$2", string(newHash), targetUserID)
+	var revoked []revokedToken
+	err = s.write(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, "UPDATE auth.users SET password_hash=$1 WHERE id=$2", string(newHash), targetUserID)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return fmt.Errorf("user_not_found")
+		}
+		if _, err := bumpTokenVersionTx(ctx, tx, targetUserID); err != nil {
+			return err
+		}
+		if revoked, err = issuedTokensFor(ctx, tx, "user_id", targetUserID); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, "DELETE FROM auth.sessions WHERE user_id=$1", targetUserID); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, "DELETE FROM auth.oauth_tokens WHERE user_id=$1", targetUserID)
+		return err
+	})
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("user_not_found")
-	}
-	_, _ = s.DB.ExecContext(ctx, "DELETE FROM auth.sessions WHERE user_id=$1", targetUserID)
-	_, _ = s.DB.ExecContext(ctx, "DELETE FROM auth.oauth_tokens WHERE user_id=$1", targetUserID)
+	revokeIssued(s.Tokens, revoked)
 	return nil
+}
+
+// CredentialsStatus 是账号凭据的共享快照：token_version 与 banned 均以 auth.users 为源。
+// 下游（catalog/community/storage）本地 JWKS 验签后必须核对这两项，才能在改密/封禁后
+// 立即拒绝旧会话 JWT（禁止仅靠进程内 jti map 做批量吊销）。
+type CredentialsStatus struct {
+	UserID       string `json:"user_id"`
+	TokenVersion int64  `json:"token_version"`
+	Banned       bool   `json:"banned"`
+}
+
+// CredentialsStatus 按用户读取当前凭据世代与封禁状态；账号不存在时返回 user_not_found。
+func (s *Store) CredentialsStatus(ctx context.Context, userID string) (CredentialsStatus, error) {
+	out := CredentialsStatus{UserID: strings.TrimSpace(userID)}
+	if out.UserID == "" {
+		return out, fmt.Errorf("user_not_found")
+	}
+	err := s.DB.QueryRowContext(ctx, "SELECT token_version, banned FROM auth.users WHERE id=$1", out.UserID).Scan(&out.TokenVersion, &out.Banned)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, fmt.Errorf("user_not_found")
+	}
+	return out, err
+}
+
+func (s *Store) currentTokenVersion(ctx context.Context, userID string) (int64, error) {
+	var v int64
+	err := s.DB.QueryRowContext(ctx, "SELECT token_version FROM auth.users WHERE id=$1", strings.TrimSpace(userID)).Scan(&v)
+	return v, err
+}
+
+func bumpTokenVersionTx(ctx context.Context, tx *sql.Tx, userID string) (int64, error) {
+	var v int64
+	err := tx.QueryRowContext(ctx, "UPDATE auth.users SET token_version = token_version + 1 WHERE id=$1 RETURNING token_version", strings.TrimSpace(userID)).Scan(&v)
+	return v, err
 }

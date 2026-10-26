@@ -397,6 +397,13 @@ func (h *Handler) registerAuth(api *gin.RouterGroup) {
 		respond(c, gin.H{"ok": true}, err)
 	})
 
+	// 凭据状态：下游 JWKS 验签后核对 token_version / banned。共享源是 auth.users（DB），
+	// 匿名可读（user id 本就在 JWT sub 里）；账号不存在统一 404。
+	api.GET("/auth/credentials-status/:user_id", func(c *gin.Context) {
+		st, err := s.CredentialsStatus(c.Request.Context(), c.Param("user_id"))
+		respond(c, st, err)
+	})
+
 	// 用户自助管理自己的第三方授权（设置页的"已授权应用"）。
 	// 与管理员的 /admin/users/{id}/revoke-oauth-tokens 的区别是**归属**：
 	// 这里只认当前登录身份，路径里没有别人的 user id，因此普通成员也能收回自己的授权。

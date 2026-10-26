@@ -51,6 +51,9 @@ type Claims struct {
 	// 下游据此做身份展示的 scope 裁剪，而不是据此放行管理能力。
 	ClientID string `json:"client_id,omitempty"`
 	Scope    string `json:"scope,omitempty"`
+	// TokenVersion 与 auth.users.token_version 对齐；下游验签后必须向账号服务核对。
+	// 缺省 0 兼容升级前签发的旧令牌（列默认 0）。
+	TokenVersion int64 `json:"tv"`
 }
 
 // 令牌用途取值。与 User.TokenUse 同源（见 store.go），判定只认这三个值与空串。
@@ -232,6 +235,7 @@ func (t *TokenIssuer) sign(u User, audience string) (string, string, time.Time, 
 		Issuer: t.issuer, Audience: audience,
 		IssuedAt: now.Unix(), Expires: exp.Unix(), JTI: jti,
 		TokenUse: u.TokenUse, ClientID: u.ClientID, Scope: u.Scope,
+		TokenVersion: u.TokenVersion,
 	}
 	payload, err := json.Marshal(claims)
 	if err != nil {
@@ -372,7 +376,7 @@ func ClaimsToUser(c *Claims) *User {
 	// 用途与授权绑定一并透传：管理闸门（Can/requirePermission）据此拒绝第三方令牌，
 	// 而不是只看 role/permissions 是否为空（显式空权限不得回落，见 access.go）。
 	u := &User{ID: c.Subject, Username: c.Username, Email: c.Email, Groups: c.Groups, Permissions: c.Permissions,
-		TokenUse: c.TokenUse, ClientID: c.ClientID, Scope: c.Scope}
+		TokenUse: c.TokenUse, ClientID: c.ClientID, Scope: c.Scope, TokenVersion: c.TokenVersion}
 	// 进程内把第三方身份的空权限显式化：JSON 反序列化后 nil 与 [] 都是 len 0，
 	// 这里统一成空切片，表明"已声明无权限"，而不是"没有权限声明"。
 	if (u.TokenUse == TokenUseOAuth || u.TokenUse == TokenUseIDToken) && u.Permissions == nil {

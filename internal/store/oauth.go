@@ -134,7 +134,7 @@ func HasOAuthScope(scopes []string, code string) bool {
 // 组与权限恒空（防按码放行），email 仅在授予 email 时出现，username 仅在授予
 // profile 时出现。sub（ID）恒在，第三方靠它关联同一用户。
 func OAuthTokenUser(u User, scopes []string) User {
-	out := User{ID: u.ID, Permissions: []string{}}
+	out := User{ID: u.ID, Permissions: []string{}, TokenVersion: u.TokenVersion}
 	if HasOAuthScope(scopes, "profile") {
 		out.Username = u.Username
 	}
@@ -797,7 +797,7 @@ func (s *Store) ExchangeOAuthCode(ctx context.Context, clientID, clientSecret, c
 		return OAuthGrant{}, fmt.Errorf("invalid_scope")
 	}
 	var u User
-	if err = s.DB.QueryRowContext(ctx, "SELECT id, username, COALESCE(email,'') FROM auth.users WHERE id=$1", userID).Scan(&u.ID, &u.Username, &u.Email); err != nil {
+	if err = s.DB.QueryRowContext(ctx, "SELECT id, username, COALESCE(email,''), token_version FROM auth.users WHERE id=$1", userID).Scan(&u.ID, &u.Username, &u.Email, &u.TokenVersion); err != nil {
 		return OAuthGrant{}, err
 	}
 	// 签发 OIDC access_token：配置签发器时为 RS256 JWT（可被 JWKS 本地验签），

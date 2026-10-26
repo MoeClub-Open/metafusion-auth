@@ -29,7 +29,8 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | GET | `/api/users/:id` | 匿名 | 公开账号资料（前端用户主页）：`user` 给 `id`/`username`、`favorites_public`/`email_public`（被 ban 时带 `banned:true`），`stats.invited_count` 为该用户邀请成功的人数。`email` 仅本人或 `email_public=true` 时出现，否则省略；非 uuid 或不存在的 id 一律 404 `not_found` |
 | GET/POST | `/api/auth/invite` | 令牌 | 个人邀请页：我的邀请码台账与由我邀请进来的人（`items`/`members`/`can_create`）/ 新建邀请码（`note`/`max_uses`/`expires_in_days`） |
 | PUT | `/api/auth/password` | 令牌 | 修改自己的密码（`old_password`/`new_password`） |
-| POST | `/api/auth/logout-all` | 令牌 | 吊销该用户全部会话 |
+| POST | `/api/auth/logout-all` | 令牌 | 吊销该用户全部会话（`token_version` +1） |
+| GET | `/api/auth/credentials-status/{user_id}` | 匿名 | 下游核对用：`{user_id,token_version,banned}`；共享源为 `auth.users` |
 | GET | `/api/auth/oauth-grants` | 令牌 | 我授权过的第三方应用（`items`：`client_id`/`name`/`scopes`/`active`/`last_authorized_at`/`expires_at`） |
 | DELETE | `/api/auth/oauth-grants/{client_id}` | 令牌 | 撤回**我自己**对该应用的授权（删未过期令牌与未兑换授权码，回 `{"ok":true,"revoked":N}`；只作用于本人） |
 | GET/POST | `/api/auth/tokens` | 令牌 | 个人访问令牌（PAT）：列出**本人**的令牌 / 创建（`201` 回明文 + 元数据，明文只此一次），见「个人访问令牌」 |
