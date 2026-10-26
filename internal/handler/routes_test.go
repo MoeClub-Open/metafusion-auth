@@ -48,6 +48,7 @@ var frozenRoutes = []string{
 	"GET /api/admin/settings",
 	"GET /api/admin/users",
 	"GET /api/auth/invite",
+	"GET /api/auth/credentials-status/:user_id",
 	"GET /api/auth/me",
 	"GET /api/auth/privacy",
 	"PATCH /api/auth/privacy",

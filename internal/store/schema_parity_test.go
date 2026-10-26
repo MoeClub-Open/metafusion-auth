@@ -27,6 +27,8 @@ var frozenTableDefs = map[string]map[string]string{
 		"bio":              "bio text not null default ''",
 		"favorites_public": "favorites_public boolean not null default true",
 		"email_public":     "email_public boolean not null default false",
+		// 2026-10-26：凭据世代。改密/全量登出/重置/封禁 +1；JWT tv 与下游核对。
+		"token_version": "token_version bigint not null default 0",
 	},
 	"auth.sessions": {
 		"token_hash": "token_hash text primary key",

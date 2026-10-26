@@ -36,7 +36,7 @@ func newIssuer(t *testing.T, issuer, audience string) *TokenIssuer {
 // 令牌闭环是账号服务的地基：签发 → 验签 → 身份还原 → 注销后拒绝。
 func TestTokenRoundTripAndRevocation(t *testing.T) {
 	iss := newIssuer(t, "https://findverse.cc/api", "metafusion")
-	u := User{ID: "11111111-1111-1111-1111-111111111111", Username: "kana", Email: "kana@example.com"}
+	u := User{ID: "11111111-1111-1111-1111-111111111111", Username: "kana", Email: "kana@example.com", TokenVersion: 7}
 
 	token, jti, exp, err := iss.Sign(u)
 	if err != nil {
@@ -49,8 +49,11 @@ func TestTokenRoundTripAndRevocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}
+	if claims.TokenVersion != 7 {
+		t.Fatalf("tv 必须写入载荷: %d", claims.TokenVersion)
+	}
 	got := ClaimsToUser(claims)
-	if got.ID != u.ID || got.Username != u.Username || got.Email != u.Email {
+	if got.ID != u.ID || got.Username != u.Username || got.Email != u.Email || got.TokenVersion != 7 {
 		t.Fatalf("身份还原不一致: %+v", got)
 	}
 

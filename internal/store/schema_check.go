@@ -10,7 +10,7 @@ import (
 func (s *Store) CheckSchema(ctx context.Context) error {
 	checks := []string{
 		`SELECT user_id,data,version FROM auth.user_avatars LIMIT 0`,
-		`SELECT id,username,email,password_hash,banned,display_name,bio,favorites_public,email_public FROM auth.users LIMIT 0`,
+		`SELECT id,username,email,password_hash,banned,display_name,bio,favorites_public,email_public,token_version FROM auth.users LIMIT 0`,
 		`SELECT token_hash,user_id,expires_at FROM auth.sessions LIMIT 0`,
 		`SELECT id,secret_hash,name,redirect_uris,trusted,scopes,disabled,owner_user_id,description,homepage_url,verified,created_at FROM auth.oauth_clients LIMIT 0`,
 		`SELECT code,client_id,user_id,redirect_uri,scope,expires_at,used,code_challenge,code_challenge_method FROM auth.oauth_codes LIMIT 0`,

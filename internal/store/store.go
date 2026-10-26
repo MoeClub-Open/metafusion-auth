@@ -42,6 +42,9 @@ type User struct {
 	// Banned 只在为真时下发：既有客户端的载荷形状保持不变（omitempty），
 	// 管理台据此显示封禁状态。
 	Banned bool `json:"banned,omitempty"`
+	// TokenVersion 是账号凭据世代（auth.users.token_version）。写入会话/OAuth JWT 的 tv；
+	// 改密、全量登出、管理员重置密码、封禁时递增，旧令牌立即作废。不进 /auth/me JSON。
+	TokenVersion int64 `json:"-"`
 }
 
 // IsThirdParty 报告该身份是否来自第三方 OAuth 令牌（access_token 或 id_token）。
@@ -88,6 +91,8 @@ ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS bio text NOT NULL DEFAULT '';
 -- 用户隐私偏好不属于实例准入设置。升级保留收藏原先公开、邮箱仅本人可见的行为。
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS favorites_public boolean NOT NULL DEFAULT true;
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_public boolean NOT NULL DEFAULT false;
+-- 凭据世代：改密/全量登出/重置密码/封禁时 +1；会话 JWT 携带 tv，下游与本服务据此即时作废旧令牌。
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS token_version bigint NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS auth.user_avatars (user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE, data bytea NOT NULL CHECK (octet_length(data)<=2097152), version text NOT NULL);
 CREATE TABLE IF NOT EXISTS auth.sessions (
  token_hash text PRIMARY KEY, user_id uuid NOT NULL REFERENCES auth.users(id), expires_at timestamptz NOT NULL
@@ -275,6 +280,13 @@ func (s *Store) Authenticate(ctx context.Context, token string) (*User, error) {
 			// 否则被封禁的人还能用手里那张≤15 分钟的 JWT 继续调用（删库行拦不住无状态令牌）。
 			if banned, berr := s.IsBanned(ctx, claims.Subject); berr == nil && banned {
 				return nil, fmt.Errorf("account_banned")
+			}
+			// 凭据世代：改密/全量登出/重置/封禁后 token_version +1，旧 JWT 的 tv 对不上即作废。
+			// 共享源是 auth.users（Postgres），不是进程内 jti map。无 DB 的桩实例跳过（与 IsBanned 同口径）。
+			if s.DB != nil {
+				if tv, verr := s.currentTokenVersion(ctx, claims.Subject); verr == nil && claims.TokenVersion != tv {
+					return nil, fmt.Errorf("invalid_token")
+				}
 			}
 			return ClaimsToUser(claims), nil
 		}
