@@ -134,7 +134,7 @@ func TestOAuthGrantsEndToEndAgainstPostgres(t *testing.T) {
 	if !revoked.OK || revoked.Revoked < 1 {
 		t.Fatalf("应报告撤回条数: %+v", revoked)
 	}
-	if _, err := st.UserFromOAuthToken(ctx, grant.Token); err == nil {
+	if _, err := st.Authenticate(ctx, grant.Token); err == nil {
 		t.Fatal("撤回后该第三方令牌必须失效")
 	}
 	w = do(t, r, http.MethodGet, "/api/auth/oauth-grants", memberBearer)

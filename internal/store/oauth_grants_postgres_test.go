@@ -108,10 +108,10 @@ func TestOAuthGrantsAgainstPostgres(t *testing.T) {
 	if n < 1 {
 		t.Fatalf("应至少删掉一条令牌，实际 %d", n)
 	}
-	if _, err := s.UserFromOAuthToken(ctx, ownerGrant.Token); err == nil {
+	if _, err := s.Authenticate(ctx, ownerGrant.Token); err == nil {
 		t.Fatal("撤回后本人的第三方令牌必须失效")
 	}
-	if _, err := s.UserFromOAuthToken(ctx, otherGrant.Token); err != nil {
+	if _, err := s.Authenticate(ctx, otherGrant.Token); err != nil {
 		t.Fatalf("撤回只应作用于本人，别人的令牌被误删: %v", err)
 	}
 

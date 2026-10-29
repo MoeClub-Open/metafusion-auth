@@ -864,21 +864,6 @@ func (s *Store) IDToken(u User, clientID string, scopes []string) (string, int64
 	return token, exp.Unix(), nil
 }
 
-func (s *Store) UserFromOAuthToken(ctx context.Context, token string) (*User, error) {
-	// 与 Authenticate 同口径：令牌有效不代表账号可用（封禁的账号不能借第三方令牌读 userinfo）。
-	// S01：返回的同样是最小身份（role 恒为 user、无组与权限），只够做"这是谁"的判定，
-	// 不够做任何授权判定；调用方不得据此放行管理能力。
-	var u User
-	var scope, clientID string
-	err := s.DB.QueryRowContext(ctx, "SELECT u.id, u.username, COALESCE(u.email,''), t.scope, t.client_id FROM auth.oauth_tokens t JOIN auth.users u ON u.id=t.user_id WHERE t.token_hash=$1 AND NOT u.banned AND t.expires_at>now()", sessionHash(token)).Scan(&u.ID, &u.Username, &u.Email, &scope, &clientID)
-	if err != nil {
-		return nil, err
-	}
-	out := OAuthTokenUser(u, SplitScopes(scope))
-	out.TokenUse, out.ClientID, out.Scope = TokenUseOAuth, clientID, scope
-	return &out, nil
-}
-
 // ── 令牌吊销 ──
 
 // revokedToken 是吊销时要回填给签发器的一条记录：jti 与它自然过期的时间

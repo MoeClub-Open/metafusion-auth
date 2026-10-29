@@ -167,7 +167,6 @@ func (t *TokenIssuer) Ephemeral() bool { return t != nil && t.ephemeral }
 
 func (t *TokenIssuer) Issuer() string   { return t.issuer }
 func (t *TokenIssuer) Audience() string { return t.audience }
-func (t *TokenIssuer) KeyID() string    { return t.kid }
 
 // TokenIssuerURL 返回 OIDC issuer 基址（也是 discovery/JWKS 的挂载根）。
 // Store 上暴露给 HTTP 层，避免在 http.go 里直接读环境变量。
