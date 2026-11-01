@@ -136,23 +136,23 @@ func TestAuditLogCoversAccountMutationsAgainstPostgres(t *testing.T) {
 		name       string
 		method     string
 		path       string
-		bearer     string
+		bearer     *string
 		body       string
 		wantStatus int
 		wantAction string
 	}{
-		{"改权限组", http.MethodPut, "/api/admin/users/" + targetID + "/groups", adminBearer, "{\"groups\":[\"member\",\"catalog_editor\"]}", 200, "user.groups_changed"},
-		{"重置口令", http.MethodPut, "/api/admin/users/" + targetID + "/password", adminBearer, "{\"password\":\"" + resetPassword + "\"}", 200, "user.password_reset"},
-		{"封禁", http.MethodPut, "/api/admin/users/" + targetID + "/ban", adminBearer, "{\"banned\":true}", 200, "user.banned"},
-		{"解封", http.MethodPut, "/api/admin/users/" + targetID + "/ban", adminBearer, "{\"banned\":false}", 200, "user.unbanned"},
-		{"改设置", http.MethodPut, "/api/admin/settings", adminBearer, "{\"registration_enabled\":true}", 200, "settings.updated"},
-		{"建账号", http.MethodPost, "/api/admin/users", adminBearer, "{\"username\":\"" + createdName + "\",\"email\":\"" + createdEmail + "\",\"password\":\"Created-Passw0rd!\"}", 200, "user.created"},
-		{"建权限组", http.MethodPost, "/api/admin/groups", adminBearer, "{\"code\":\"" + groupCode + "\",\"names\":{\"en-US\":\"Audit probe\"},\"permissions\":[\"auth.audit.read\"]}", 200, "group.created"},
-		{"删权限组", http.MethodDelete, "/api/admin/groups/" + groupCode, adminBearer, "", 200, "group.deleted"},
-		{"自助建邀请码", http.MethodPost, "/api/auth/invite", inviteBearer, "{\"note\":\"audit probe\",\"max_uses\":1}", 200, "invite.self_created"},
-		{"管理员建邀请码", http.MethodPost, "/api/admin/invites", adminBearer, "{\"note\":\"audit probe\",\"max_uses\":1}", 200, "invite.created"},
-		{"自助改口令", http.MethodPut, "/api/auth/password", memberBearer, "{\"old_password\":\"" + chainTestPassword + "\",\"new_password\":\"" + selfPassword + "\"}", 200, "user.password_changed"},
-		{"吊销全部会话", http.MethodPost, "/api/auth/logout-all", memberBearer, "", 200, "user.sessions_revoked"},
+		{"改权限组", http.MethodPut, "/api/admin/users/" + targetID + "/groups", &adminBearer, "{\"groups\":[\"member\",\"catalog_editor\"]}", 200, "user.groups_changed"},
+		{"重置口令", http.MethodPut, "/api/admin/users/" + targetID + "/password", &adminBearer, "{\"password\":\"" + resetPassword + "\"}", 200, "user.password_reset"},
+		{"封禁", http.MethodPut, "/api/admin/users/" + targetID + "/ban", &adminBearer, "{\"banned\":true}", 200, "user.banned"},
+		{"解封", http.MethodPut, "/api/admin/users/" + targetID + "/ban", &adminBearer, "{\"banned\":false}", 200, "user.unbanned"},
+		{"改设置", http.MethodPut, "/api/admin/settings", &adminBearer, "{\"registration_enabled\":true}", 200, "settings.updated"},
+		{"建账号", http.MethodPost, "/api/admin/users", &adminBearer, "{\"username\":\"" + createdName + "\",\"email\":\"" + createdEmail + "\",\"password\":\"Created-Passw0rd!\"}", 200, "user.created"},
+		{"建权限组", http.MethodPost, "/api/admin/groups", &adminBearer, "{\"code\":\"" + groupCode + "\",\"names\":{\"en-US\":\"Audit probe\"},\"permissions\":[\"auth.audit.read\"]}", 200, "group.created"},
+		{"删权限组", http.MethodDelete, "/api/admin/groups/" + groupCode, &adminBearer, "", 200, "group.deleted"},
+		{"自助建邀请码", http.MethodPost, "/api/auth/invite", &inviteBearer, "{\"note\":\"audit probe\",\"max_uses\":1}", 200, "invite.self_created"},
+		{"管理员建邀请码", http.MethodPost, "/api/admin/invites", &adminBearer, "{\"note\":\"audit probe\",\"max_uses\":1}", 200, "invite.created"},
+		{"自助改口令", http.MethodPut, "/api/auth/password", &memberBearer, "{\"old_password\":\"" + chainTestPassword + "\",\"new_password\":\"" + selfPassword + "\"}", 200, "user.password_changed"},
+		{"吊销全部会话", http.MethodPost, "/api/auth/logout-all", &memberBearer, "", 200, "user.sessions_revoked"},
 	}
 
 	requestIDs := map[string]string{}
@@ -160,9 +160,21 @@ func TestAuditLogCoversAccountMutationsAgainstPostgres(t *testing.T) {
 	for _, step := range steps {
 		requestID := auditRequestIDPrefix + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
 		requestIDs[step.name] = requestID
-		w := auditRequest(t, r, step.method, step.path, step.bearer, step.body, requestID)
+		w := auditRequest(t, r, step.method, step.path, *step.bearer, step.body, requestID)
 		if w.Code != step.wantStatus {
 			t.Fatalf("%s 应 %d，实际 %d / %s", step.name, step.wantStatus, w.Code, w.Body.String())
+		}
+		if step.wantAction == "user.password_changed" || step.wantAction == "user.sessions_revoked" {
+			if _, err := st.Authenticate(ctx, memberBearer); err == nil {
+				t.Fatalf("%s 后旧会话仍有效", step.name)
+			}
+			var fresh store.User
+			var err error
+			memberBearer, fresh, err = st.Login(ctx, memberName, selfPassword)
+			if err != nil {
+				t.Fatalf("%s 后重新登录: %v", step.name, err)
+			}
+			patBearer = signBearer(t, st, store.User{ID: memberID, Username: memberName, TokenVersion: fresh.TokenVersion, Permissions: []string{"community.post.create"}})
 		}
 		if got := w.Header().Get("X-Request-Id"); got != requestID {
 			t.Fatalf("%s 响应应回写 X-Request-Id=%s，实际 %q", step.name, requestID, got)
