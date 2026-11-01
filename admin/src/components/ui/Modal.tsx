@@ -87,8 +87,8 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className={`px-4 py-1.5 rounded-control text-white text-xs font-semibold transition-colors duration-fast ease-soft disabled:opacity-50 cursor-pointer ${
-              danger ? "bg-rose-500 hover:bg-rose-400" : "bg-primary hover:bg-primary-hover"
+            className={`px-4 py-1.5 rounded-control text-xs font-semibold transition-colors duration-fast ease-soft disabled:opacity-50 cursor-pointer ${
+              danger ? "bg-danger text-destructive-foreground hover:opacity-90" : "bg-primary text-primary-foreground hover:bg-primary-hover"
             }`}
           >
             {confirmLabel}

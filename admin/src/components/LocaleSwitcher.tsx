@@ -19,7 +19,7 @@ export function LocaleSwitcher() {
     return () => { document.removeEventListener("mousedown", onPointer); document.removeEventListener("keydown", onKey); };
   }, [open]);
   return <div className="relative" ref={container}>
-    <button type="button" aria-label={t("locale.label")} title={t("locale.label")} aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className="grid h-9 w-9 place-items-center rounded-full border border-line bg-surfaceSubtle text-text-body hover:bg-surfaceHover"><Languages className="h-4 w-4" /></button>
+    <button type="button" aria-label={t("locale.label")} title={t("locale.label")} aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)} className="grid h-9 w-9 place-items-center rounded-control border border-line bg-surfaceSubtle text-text-body hover:bg-surfaceHover"><Languages className="h-4 w-4" /></button>
     {open ? <div role="menu" aria-label={t("locale.label")} className="absolute right-0 z-50 mt-2 w-44 rounded-card border border-line bg-surface p-1.5 shadow-elevated">
       {locales.map((code) => <button key={code} type="button" role="menuitemradio" aria-checked={locale === code} onClick={() => { setLocale(code as Locale); setOpen(false); }} className={"flex w-full items-center justify-between rounded-control px-3 py-2 text-left text-xs hover:bg-surfaceHover " + (locale === code ? "font-semibold text-primary" : "text-text-body")}>{t(`locale.${code}`)}{locale === code ? <Check className="h-4 w-4" /> : null}</button>)}
     </div> : null}

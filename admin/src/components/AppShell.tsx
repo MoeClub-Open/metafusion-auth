@@ -1,5 +1,8 @@
 "use client";
 
+import { useTheme } from "@/lib/themeContext";
+import { ThemePicker } from "./ThemePicker";
+
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -33,12 +36,13 @@ const NAV_GROUPS: { labelKey: string; items: { key: SectionKey; href: string; ic
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { t, setLocale } = useI18n();
+  const { setTheme } = useTheme();
   const [embedded, setEmbedded] = useState(false);
   useEffect(() => {
-    const disconnect = connectAdminWorkspace(setLocale);
+    const disconnect = connectAdminWorkspace(setLocale, setTheme);
     setEmbedded(disconnect !== null);
     return disconnect ?? undefined;
-  }, [setLocale]);
+  }, [setLocale, setTheme]);
   const { status, user, error, reload } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -76,6 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex shrink-0 items-center gap-2">
             <LocaleSwitcher />
             <ThemeModeSwitcher />
+            <ThemePicker />
             {user ? <span className="hidden max-w-[9rem] truncate rounded border border-primary/30 bg-primary/20 px-2 py-0.5 font-mono text-xs text-primary sm:inline-flex" title={user.username}>{user.username}</span> : null}
           </div>
         </div>

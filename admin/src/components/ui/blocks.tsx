@@ -145,4 +145,4 @@ export const inputClass =
   "w-full px-2.5 py-1.5 rounded-control bg-surfaceSubtle border border-line text-xs text-text-strong placeholder:text-text-faint focus:border-primary outline-none";
 export const labelClass = "block text-[11px] font-mono text-text-body font-medium mb-1";
 export const primaryButtonClass =
-  "px-4 py-1.5 rounded-control bg-primary hover:bg-primary-hover text-white text-xs font-semibold transition-colors duration-fast ease-soft disabled:opacity-50 cursor-pointer";
+  "px-4 py-1.5 rounded-control bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-semibold transition-colors duration-fast ease-soft disabled:opacity-50 cursor-pointer";
