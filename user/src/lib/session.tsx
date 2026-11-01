@@ -2,12 +2,10 @@
 
 // 会话状态：账号服务签发的同域 Cookie 是唯一凭据，GET /api/auth/me 是唯一来源。
 //
-// 未登录或 401 → 跳主站登录页 /login?redirect=<当前路径>；其余错误不跳，就地显示并允许重试
-// （账号服务不可达时把人赶去登录页只会更糟）。
+// 登录、注册和初始化都允许匿名访问；未登录或 401 仅清空会话，页面自行处理登录后的跳转。
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
-import { redirectToLogin } from "./api";
 import { fetchMe, type MeUser } from "./endpoints";
 import { describeApiError } from "./errors";
 import { clearSessionHint, hasSessionHint } from "./sessionHint";
@@ -40,7 +38,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setError(null);
       setStatus("ready");
-      redirectToLogin();
       return;
     }
     fetchMe()
@@ -57,7 +54,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           clearSessionHint();
           setStatus("ready");
           setUser(null);
-          redirectToLogin();
           return;
         }
         setError(describeApiError(err, t, "auth.users.manage"));

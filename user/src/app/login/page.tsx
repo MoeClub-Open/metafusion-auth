@@ -17,9 +17,7 @@ import {
 } from "@/lib/endpoints";
 import { authErrorText, httpStatusOf, httpRetryAfterSecondsOf } from "@/lib/authErrors";
 import { useI18n } from "@/i18n/I18nProvider";
-import { BrandMark } from "@/components/Logo";
 import { PageContainer } from "@/components/ui/PageShell";
-import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import {
   User,
   Mail,
@@ -161,19 +159,7 @@ function LoginInner() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background relative flex flex-col p-4 sm:p-5">
-      <PageContainer as="header" width="narrow" className="relative z-10 shrink-0">
-        <div className="flex items-center justify-between gap-4">
-          <Link href="/" title="MetaFusion" className="flex items-center gap-2.5 group">
-            <BrandMark size={28} idSuffix="login" />
-            <span className="font-display text-xl tracking-[-0.03em] text-text-strong">MetaFusion</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <LocaleSwitcher />
-          </div>
-        </div>
-      </PageContainer>
-
+    <div className="relative flex flex-1 flex-col p-4 sm:p-5">
       <PageContainer as="main" width="narrow" className="mf-enter relative z-10 flex-1 grid place-items-center py-6">
         <div className="mx-auto w-full max-w-md space-y-3">
           {hasAdmin === false && (
@@ -327,10 +313,10 @@ function LoginInner() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full h-11 max-sm:min-h-[44px] rounded-control bg-primary text-white keep-white font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity duration-fast shadow-xs disabled:opacity-50 mt-2 mf-focus"
+                className="w-full h-11 max-sm:min-h-[44px] rounded-control bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity duration-fast shadow-xs disabled:opacity-50 mt-2 mf-focus"
               >
                 {submitting ? (
-                  <div className="w-4 h-4 border-2 border-emphasis/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                 ) : (
                   <>
                     <span>{mode === "register" ? t("auth.gate.createAccount") : t("auth.gate.secureLogin")}</span>
@@ -348,7 +334,7 @@ function LoginInner() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<LoadingFallback className="h-[100dvh] bg-background grid place-items-center font-mono text-sm text-text-faint" />}>
+    <Suspense fallback={<LoadingFallback className="flex-1 grid place-items-center font-mono text-sm text-text-faint" />}>
       <LoginInner />
     </Suspense>
   );

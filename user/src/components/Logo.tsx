@@ -12,7 +12,7 @@ type BrandMarkProps = {
 export function BrandMark({ size = 28, className, withGlow = false, idSuffix = "a" }: BrandMarkProps) {
   return (
     <span
-      className={`inline-grid place-items-center shrink-0 text-slate-900 dark:text-white ${className ?? ""}`}
+      className={`inline-grid place-items-center shrink-0 text-text-strong ${className ?? ""}`}
       style={{ width: size, height: size }}
       aria-hidden
     >

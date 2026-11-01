@@ -13,7 +13,6 @@ import {
 import { useSession } from "@/lib/session";
 import { useI18n } from "@/i18n/I18nProvider";
 import { BrandMark } from "@/components/Logo";
-import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import {
   Server,
   User,
@@ -97,7 +96,7 @@ export default function SetupPage() {
 
   if (loadingStatus) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center font-mono text-sm text-text-faint">
+      <div className="flex-1 flex flex-col items-center justify-center font-mono text-sm text-text-faint">
         <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
         <span>{t("common.loading")}</span>
       </div>
@@ -106,7 +105,7 @@ export default function SetupPage() {
 
   if (status?.is_initialized && !successResult) {
     return (
-      <div className="min-h-screen bg-background relative flex flex-col items-center justify-center p-6 selection:bg-primary selection:text-white">
+      <div className="flex-1 relative flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-md p-8 rounded-2xl bg-card border border-border shadow-2xl text-center space-y-6 animate-fade-in">
           <div className="space-y-2">
             <h1 className="text-2xl font-extrabold text-text-strong font-mono">
@@ -118,7 +117,7 @@ export default function SetupPage() {
           </div>
           <Link
             href="/"
-            className="inline-flex items-center justify-center px-6 h-11 rounded-xl bg-primary text-white keep-white font-semibold text-sm hover:opacity-90 transition-all shadow-md cursor-pointer"
+            className="inline-flex items-center justify-center px-6 h-11 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all shadow-md cursor-pointer"
           >
             <span>{t("setup.goToHome")}</span>
           </Link>
@@ -129,10 +128,7 @@ export default function SetupPage() {
 
   if (successResult) {
     return (
-      <div className="min-h-screen bg-background relative flex flex-col items-center justify-center p-6 selection:bg-primary selection:text-white">
-        <div className="absolute top-5 right-5 z-20 flex items-center gap-2">
-          <LocaleSwitcher />
-        </div>
+      <div className="flex-1 relative flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-lg p-8 rounded-3xl bg-card border border-emerald-500/30 shadow-2xl text-center space-y-6 animate-scale-up relative overflow-hidden">
           <div className="w-20 h-20 rounded-3xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 grid place-items-center mx-auto shadow-lg shadow-emerald-500/10">
             <CheckCircle2 className="w-10 h-10" />
@@ -166,7 +162,7 @@ export default function SetupPage() {
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Link
               href="/admin"
-              className="flex-1 inline-flex items-center justify-center gap-2 h-12 rounded-xl bg-primary text-white keep-white font-semibold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/25 cursor-pointer"
+              className="flex-1 inline-flex items-center justify-center gap-2 h-12 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/25 cursor-pointer"
             >
               <span>{t("setup.enterAdmin")}</span>
               <ArrowRight className="w-4 h-4" />
@@ -184,10 +180,7 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background relative flex flex-col justify-between overflow-clip p-4 sm:p-8 selection:bg-primary selection:text-white">
-      <aside className="absolute top-5 right-5 z-20 flex items-center gap-2">
-        <LocaleSwitcher />
-      </aside>
+    <div className="flex-1 relative flex flex-col justify-between p-4 sm:p-8">
       <PageContainer as="header" width="narrow" className="relative z-10 pt-6 text-center space-y-4">
         <div className="inline-block relative">
           <BrandMark size={56} withGlow={true} idSuffix="setup-header" className="mx-auto drop-shadow-md" />
@@ -329,7 +322,7 @@ export default function SetupPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full h-12 rounded-2xl bg-primary text-white keep-white font-semibold text-sm hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-xl shadow-primary/25 disabled:opacity-50 cursor-pointer"
+            className="w-full h-12 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-xl shadow-primary/25 disabled:opacity-50 cursor-pointer"
           >
             {submitting ? (
               <>
@@ -345,7 +338,7 @@ export default function SetupPage() {
           </button>
         </form>
       </PageShell>
-      <PageContainer as="footer" width="narrow" className="relative z-10 text-center font-mono text-xs text-text-muted dark:text-white/30 py-4">
+      <PageContainer as="footer" width="narrow" className="relative z-10 text-center font-mono text-xs text-text-muted py-4">
         © 2026 MetaFusion · Out-of-Box Initialization Wizard
       </PageContainer>
     </div>
