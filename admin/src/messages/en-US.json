@@ -461,5 +461,14 @@
   "logs.confirmMessage": "Delete {kind} for {service} before {before}. Currently {count} rows match. This cannot be undone.",
   "logs.cleaned": "Deleted {count} rows",
   "logs.kind.audit": "operation audits",
-  "logs.kind.statistics": "daily API statistics"
+  "logs.kind.statistics": "daily API statistics",
+  "logs.routeSearch": "Search endpoints",
+  "logs.empty": "No matching statistics",
+  "logs.rangeLimit": "Select a range of up to 90 days.",
+  "logs.statusGroup.all": "All statuses",
+  "logs.statusGroup.errors": "All error responses",
+  "logs.statusGroup.2": "2xx Success",
+  "logs.statusGroup.3": "3xx Redirect",
+  "logs.statusGroup.4": "4xx Client error",
+  "logs.statusGroup.5": "5xx Server error"
 }

@@ -461,5 +461,14 @@
   "logs.confirmMessage": "將刪除 {service} 在 {before} 之前的{kind}，目前共 {count} 筆。此操作無法復原。",
   "logs.cleaned": "已清理 {count} 筆記錄",
   "logs.kind.audit": "操作稽核",
-  "logs.kind.statistics": "API 日統計"
+  "logs.kind.statistics": "API 日統計",
+  "logs.routeSearch": "搜尋介面",
+  "logs.empty": "沒有符合條件的統計資料",
+  "logs.rangeLimit": "每次最多查詢 90 天。",
+  "logs.statusGroup.all": "全部狀態",
+  "logs.statusGroup.errors": "所有失敗回應",
+  "logs.statusGroup.2": "2xx 成功",
+  "logs.statusGroup.3": "3xx 重新導向",
+  "logs.statusGroup.4": "4xx 請求錯誤",
+  "logs.statusGroup.5": "5xx 服務錯誤"
 }

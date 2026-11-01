@@ -461,5 +461,14 @@
   "logs.confirmMessage": "{service} の {before} より前の{kind}を削除します。現在 {count} 件が該当します。元に戻せません。",
   "logs.cleaned": "{count} 件を削除しました",
   "logs.kind.audit": "操作監査",
-  "logs.kind.statistics": "API 日別統計"
+  "logs.kind.statistics": "API 日別統計",
+  "logs.routeSearch": "エンドポイントを検索",
+  "logs.empty": "該当する統計がありません",
+  "logs.rangeLimit": "一度に照会できる期間は 90 日以内です。",
+  "logs.statusGroup.all": "すべてのステータス",
+  "logs.statusGroup.errors": "すべてのエラー応答",
+  "logs.statusGroup.2": "2xx 成功",
+  "logs.statusGroup.3": "3xx リダイレクト",
+  "logs.statusGroup.4": "4xx リクエストエラー",
+  "logs.statusGroup.5": "5xx サーバーエラー"
 }

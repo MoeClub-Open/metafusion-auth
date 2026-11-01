@@ -1,10 +1,11 @@
 "use client";
 
 // 操作审计、API 汇总与有权限的日志清理。
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, FileClock, Search } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useResource } from "@/lib/useResource";
+import { announceAdminNavigation, isAdminWorkspaceEmbedded, prepareAdminNavigation } from "@/lib/adminWorkspace";
 import { AUTH_AUDIT_READ } from "@/lib/permissions";
 import { AUDIT_ERROR_KEYS } from "@/lib/errors";
 import { formatStamp } from "@/lib/format";
@@ -402,11 +403,27 @@ function AuditPanel() {
 export default function AuditPage() {
   const { t } = useI18n();
   const [tab, setTab] = useState<"audit" | "statistics">("audit");
+  useEffect(() => {
+    const sync = () => setTab(window.location.hash === "#statistics" ? "statistics" : "audit");
+    sync();
+    window.addEventListener("hashchange", sync);
+    window.addEventListener("popstate", sync);
+    return () => { window.removeEventListener("hashchange", sync); window.removeEventListener("popstate", sync); };
+  }, []);
+  const selectTab = (value: "audit" | "statistics") => {
+    if (value === tab) return;
+    const href = window.location.pathname + window.location.search + (value === "statistics" ? "#statistics" : "");
+    prepareAdminNavigation(href);
+    if (isAdminWorkspaceEmbedded()) window.history.replaceState(window.history.state, "", href);
+    else window.history.pushState(window.history.state, "", href);
+    setTab(value);
+    announceAdminNavigation();
+  };
   return (
     <RequirePermission code={AUTH_AUDIT_READ}>
       <div className="space-y-5">
         <div aria-label={t("nav.audit")} className="flex gap-1 border-b border-line-subtle">
-          {(["audit", "statistics"] as const).map((value) => <button type="button" key={value} aria-pressed={tab === value} className={`border-b-2 px-3 py-2 text-sm ${tab === value ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text-strong"}`} onClick={() => setTab(value)}>{t(`logs.${value}`)}</button>)}
+          {(["audit", "statistics"] as const).map((value) => <button type="button" key={value} aria-pressed={tab === value} className={`border-b-2 px-3 py-2 text-sm ${tab === value ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text-strong"}`} onClick={() => selectTab(value)}>{t(`logs.${value}`)}</button>)}
         </div>
         {tab === "audit" ? <AuditPanel /> : <APIStatistics />}
       </div>

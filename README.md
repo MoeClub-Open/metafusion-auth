@@ -402,3 +402,5 @@ API 不输出逐请求访问日志。四服务将调用次数、状态和耗时�
 `auth.audit.manage` 允许预览 `GET /api/admin/log-cleanup?kind=audit&before=YYYY-MM-DD&service=auth`，返回 `count`，再用 `POST /api/admin/log-cleanup` 提交同样字段的 JSON，返回实际 `removed`。`kind` 也可选 `statistics`；服务留空表示所有服务；按 UTC 删除截止日期之前的数据，保留当天。清理不可恢复，动作记录为 `audit.logs_cleaned`。不删除 OAuth 事务审计和业务历史。
 
 升级先显式运行 `auth-server -migrate`，再用主仓 `deploy/sql/roles-least-privilege.sql` 收敛统计表和受限清理函数权限，最后重启 HTTP。运行角色不获得审计表直接删除权限。共享采集源码由主仓 `scripts/check_api_telemetry.py` 比对。
+
+日志管理的统计视图支持 `admin/account/audit#statistics` 直达、浏览器前进/后退与刷新保持；接口关键词和响应状态在已查询的日统计内筛选，调用总数与耗时使用相同筛选口径。
