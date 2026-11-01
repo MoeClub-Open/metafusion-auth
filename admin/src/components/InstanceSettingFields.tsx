@@ -69,7 +69,7 @@ export function ReadonlyRow({ settingKey, value, note }: { settingKey: string; v
       ) : null}
 
       {hint ? <p className="text-[10px] text-text-faint leading-relaxed">{hint}</p> : null}
-      <p className="text-[10px] text-amber-400/80 leading-relaxed flex items-start gap-1.5">
+      <p className="text-[10px] text-warn leading-relaxed flex items-start gap-1.5">
         <Info className="w-3 h-3 shrink-0 mt-0.5" />
         <span>{note}</span>
       </p>
@@ -192,7 +192,7 @@ export function WritableField({
               </div>
             </div>
           ) : (
-            <p className="text-[10px] text-amber-400/80 leading-relaxed">{t("instance.groupsUnavailable")}</p>
+            <p className="text-[10px] text-warn leading-relaxed">{t("instance.groupsUnavailable")}</p>
           )}
         </div>
       ) : null}

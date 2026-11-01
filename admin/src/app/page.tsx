@@ -346,8 +346,8 @@ function UsersPanel() {
                               }}
                               className={`px-2 py-1 rounded-chip text-[11px] transition-colors duration-fast ease-soft inline-flex items-center gap-1 ${
                                 u.banned
-                                  ? "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 cursor-pointer"
-                                  : "bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                  ? "bg-success/15 hover:bg-success/25 text-success cursor-pointer"
+                                  : "bg-danger/15 hover:bg-danger/25 text-danger cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               }`}
                             >
                               {u.banned ? <UserCheck className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
@@ -396,11 +396,11 @@ function UsersPanel() {
             <div>
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className={labelClass + " mb-0"}>{t("users.field.groups")}</span>
-                {groups.error ? <span className="text-[10px] font-mono text-rose-300">{t("users.groupsForbiddenHint")}</span> : null}
+                {groups.error ? <span className="text-[10px] font-mono text-danger">{t("users.groupsForbiddenHint")}</span> : null}
               </div>
               {groups.error ? (
                 // 组清单取不到时不禁用整块编辑：密码仍可改，只是组选择降级为只读展示。
-                <p className="p-2 rounded-control bg-rose-500/10 border border-rose-500/30 text-[11px] text-rose-300 leading-relaxed">
+                <p className="p-2 rounded-control bg-danger/10 border border-danger/30 text-[11px] text-danger leading-relaxed">
                   {groups.error}
                 </p>
               ) : null}

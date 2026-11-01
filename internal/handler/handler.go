@@ -77,6 +77,7 @@ func (h *Handler) Register(r *gin.Engine) {
 	h.registerAvatar(api)
 	// 审计读取面 GET /admin/audit-logs（跨服务审计的唯一读取端点）。
 	h.registerAudit(api)
+	h.registerAPIStatistics(api)
 
 	// OIDC 标准路径：
 	//   /.well-known/openid-configuration、/.well-known/jwks.json

@@ -45,6 +45,7 @@ func PermissionCatalog() []PermissionCode {
 		{Code: "auth.invites.manage", Service: "auth", Names: map[string]string{"zh-CN": "管理邀请码", "zh-TW": "管理邀請碼", "ja-JP": "招待コード管理", "en-US": "Manage invite codes"}},
 		{Code: "auth.settings.manage", Service: "auth", Names: map[string]string{"zh-CN": "管理实例设置", "zh-TW": "管理實例設定", "ja-JP": "インスタンス設定", "en-US": "Manage instance settings"}},
 		{Code: "auth.oauth.manage", Service: "auth", Names: map[string]string{"zh-CN": "管理 OAuth 客户端", "zh-TW": "管理 OAuth 用戶端", "ja-JP": "OAuth クライアントの管理", "en-US": "Manage OAuth clients"}},
+		{Code: "auth.audit.manage", Service: "auth", Names: map[string]string{"zh-CN": "清理日志", "zh-TW": "清理日誌", "ja-JP": "ログの削除", "en-US": "Clean up logs"}},
 		{Code: "auth.audit.read", Service: "auth", Names: map[string]string{"zh-CN": "查看审计日志", "zh-TW": "檢視審計日誌", "ja-JP": "監査ログの閲覧", "en-US": "View audit log"}},
 		{Code: "catalog.review.manage", Service: "catalog", Names: map[string]string{"zh-CN": "审核目录提交", "zh-TW": "審核目錄提交", "en-US": "Review catalog submissions", "ja-JP": "カタログ変更の審査"}},
 		{Code: "catalog.review.bypass", Service: "catalog", Names: map[string]string{"zh-CN": "目录提交免审", "zh-TW": "目錄提交免審", "en-US": "Bypass catalog review", "ja-JP": "カタログ変更の審査免除"}},

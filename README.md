@@ -394,3 +394,11 @@ PAT/MCP 内省还返回账号当前的 `catalog_review_exempt`（依据账号是
 `PUT /api/auth/avatar` 接收 multipart 字段 `avatar`（PNG/JPEG/GIF，最多 2 MiB），仅能修改本人头像。图片解码后统一重新编码为 PNG，拒绝 SVG、损坏图片及过大的像素尺寸。前端支持 PNG/JPEG/WebP/GIF 本地选图，预览时居中裁成 512×512，再上传 PNG。`DELETE /api/auth/avatar` 移除本人头像。两种写操作均记录操作日志。
 
 小尺寸头像归账号资料所有，保存于 `auth.user_avatars`，不进入资料 JSON 或 JWT。第一方 `/auth/me` 与公开资料只返回带内容版本的 `avatar_url`；公开 `GET /api/users/{id}/avatar?v={version}` 提供图片、ETag 与条件读取，错误版本或不存在返回 404。升级使用 `auth-server -migrate`，HTTP 启动只读检查该表。网关将用户资料与 avatar 子路由交给账号服务，贡献与互动路由保持原归属。
+
+### 日志与统计
+
+API 不输出逐请求访问日志。四服务将调用次数、状态和耗时按 UTC 日期/路由模板汇总，每 30 秒刷新；操作审计仍按登记动作写入。管理台「日志与统计」查询 `GET /api/admin/api-statistics?from=YYYY-MM-DD&to=YYYY-MM-DD&service=auth`（`auth.audit.read`，默认近 7 天，最多 90 天）。响应 `items` 为日统计行，字段 `day/service/method/route/status/requests/total_ms/max_ms`，另有 `flush_interval_seconds:30`。
+
+`auth.audit.manage` 允许预览 `GET /api/admin/log-cleanup?kind=audit&before=YYYY-MM-DD&service=auth`，返回 `count`，再用 `POST /api/admin/log-cleanup` 提交同样字段的 JSON，返回实际 `removed`。`kind` 也可选 `statistics`；服务留空表示所有服务；按 UTC 删除截止日期之前的数据，保留当天。清理不可恢复，动作记录为 `audit.logs_cleaned`。不删除 OAuth 事务审计和业务历史。
+
+升级先显式运行 `auth-server -migrate`，再用主仓 `deploy/sql/roles-least-privilege.sql` 收敛统计表和受限清理函数权限，最后重启 HTTP。运行角色不获得审计表直接删除权限。共享采集源码由主仓 `scripts/check_api_telemetry.py` 比对。

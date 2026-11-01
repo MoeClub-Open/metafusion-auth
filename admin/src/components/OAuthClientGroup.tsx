@@ -129,7 +129,7 @@ export function OAuthClientGroup({
                           <button
                             type="button"
                             onClick={() => onRotate(client)}
-                            className="px-2 py-1 rounded-chip bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[11px] transition-colors duration-fast ease-soft cursor-pointer inline-flex items-center gap-1"
+                            className="px-2 py-1 rounded-chip bg-warn/15 hover:bg-warn/25 text-warn text-[11px] transition-colors duration-fast ease-soft cursor-pointer inline-flex items-center gap-1"
                           >
                             <RefreshCw className="w-3 h-3" />
                             <span>{t("oauth.rotate")}</span>
@@ -147,7 +147,7 @@ export function OAuthClientGroup({
                             disabled={seeded}
                             title={seeded ? t("oauth.seededHint") : ""}
                             onClick={() => onDelete(client)}
-                            className="px-2 py-1 rounded-chip bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[11px] transition-colors duration-fast ease-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
+                            className="px-2 py-1 rounded-chip bg-danger/15 hover:bg-danger/25 text-danger text-[11px] transition-colors duration-fast ease-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
                           >
                             <Trash2 className="w-3 h-3" />
                             <span>{t("action.delete")}</span>

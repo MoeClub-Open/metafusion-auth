@@ -60,17 +60,17 @@ export function ErrorNotice({
 }) {
   const { t } = useI18n();
   return (
-    <div className="p-3 rounded-card bg-rose-500/10 border border-rose-500/30 space-y-2">
-      <div className="flex items-start gap-2 text-rose-300 text-xs leading-relaxed">
+    <div className="p-3 rounded-card bg-danger/10 border border-danger/30 space-y-2">
+      <div className="flex items-start gap-2 text-danger text-xs leading-relaxed">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         <span>{message}</span>
       </div>
-      {permissionHint ? <p className="text-[11px] text-rose-300/70 leading-relaxed">{permissionHint}</p> : null}
+      {permissionHint ? <p className="text-[11px] text-danger leading-relaxed">{permissionHint}</p> : null}
       {onRetry ? (
         <button
           type="button"
           onClick={onRetry}
-          className="px-2.5 py-1 rounded-chip bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-[11px] font-medium transition-colors duration-fast ease-soft cursor-pointer"
+          className="px-2.5 py-1 rounded-control bg-danger/20 hover:bg-danger/30 text-danger text-[11px] font-medium transition-colors duration-fast ease-soft cursor-pointer"
         >
           {t("action.retry")}
         </button>
@@ -83,13 +83,13 @@ export function ErrorNotice({
 export function ForbiddenBlock({ permission }: { permission: string }) {
   const { t } = useI18n();
   return (
-    <div className="p-6 rounded-card bg-amber-500/[0.06] border border-amber-500/25 space-y-2">
-      <div className="flex items-center gap-2 text-amber-300 text-sm font-semibold">
+    <div className="p-6 rounded-card bg-warn/[0.06] border border-warn/25 space-y-2">
+      <div className="flex items-center gap-2 text-warn text-sm font-semibold">
         <ShieldAlert className="w-4 h-4 shrink-0" />
         <span>{t("permission.deniedTitle")}</span>
       </div>
-      <p className="text-[11px] text-amber-100/70 leading-relaxed">{t("permission.deniedDesc", { code: permission })}</p>
-      <p className="text-[11px] text-amber-100/50 leading-relaxed">{t("permission.serverSideHint")}</p>
+      <p className="text-[11px] text-warn leading-relaxed">{t("permission.deniedDesc", { code: permission })}</p>
+      <p className="text-[11px] text-warn leading-relaxed">{t("permission.serverSideHint")}</p>
     </div>
   );
 }
@@ -119,7 +119,7 @@ export function StatusMessage({ kind, text }: { kind: "ok" | "err"; text: string
     <div
       role="status"
       className={`p-2.5 rounded-control text-[11px] font-mono leading-relaxed ${
-        kind === "ok" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/20 text-rose-300"
+        kind === "ok" ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
       }`}
     >
       {text}
@@ -130,9 +130,9 @@ export function StatusMessage({ kind, text }: { kind: "ok" | "err"; text: string
 export function Chip({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "ok" | "warn" | "danger" }) {
   const tones: Record<string, string> = {
     neutral: "bg-surfaceSubtle text-text-muted border-line",
-    ok: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-    warn: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-    danger: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+    ok: "bg-success/10 text-success border-success/30",
+    warn: "bg-warn/15 text-warn border-warn/30",
+    danger: "bg-danger/15 text-danger border-danger/30",
   };
   return (
     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-chip border text-[10px] font-mono ${tones[tone]}`}>

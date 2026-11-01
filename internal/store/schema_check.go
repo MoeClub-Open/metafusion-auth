@@ -9,6 +9,7 @@ import (
 // or seed/backfill permissions. Existing instances must run auth-server -migrate.
 func (s *Store) CheckSchema(ctx context.Context) error {
 	checks := []string{
+		`SELECT day,service,method,route,status,requests,total_ms,max_ms FROM audit.api_statistics LIMIT 0`,
 		`SELECT user_id,data,version FROM auth.user_avatars LIMIT 0`,
 		`SELECT id,username,email,password_hash,banned,display_name,bio,favorites_public,email_public,token_version FROM auth.users LIMIT 0`,
 		`SELECT token_hash,user_id,expires_at FROM auth.sessions LIMIT 0`,
@@ -35,6 +36,13 @@ func (s *Store) CheckSchema(ctx context.Context) error {
 		}
 	}
 	var usernameUnique bool
+	var cleanupReady bool
+	if err := s.DB.QueryRowContext(ctx, `SELECT to_regprocedure('audit.cleanup_logs(text,timestamp with time zone,text)') IS NOT NULL`).Scan(&cleanupReady); err != nil {
+		return err
+	}
+	if !cleanupReady {
+		return fmt.Errorf("log cleanup migration required: run auth-server -migrate")
+	}
 	if err := s.DB.QueryRowContext(ctx, `SELECT EXISTS (
 		SELECT 1 FROM pg_index WHERE indexrelid=to_regclass('auth.users_username_lower_key')
 		AND indrelid='auth.users'::regclass AND indisunique AND indisvalid

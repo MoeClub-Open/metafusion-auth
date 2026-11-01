@@ -223,7 +223,7 @@ function InvitesPanel() {
                             setMessage(null);
                             setRevokeTarget(invite);
                           }}
-                          className="px-2 py-1 rounded-chip bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[11px] transition-colors duration-fast ease-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
+                          className="px-2 py-1 rounded-chip bg-danger/15 hover:bg-danger/25 text-danger text-[11px] transition-colors duration-fast ease-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" />
                           <span>{t("invites.revoke")}</span>

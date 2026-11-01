@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/MoeclubM/metafusion-auth/internal/telemetry"
 	"github.com/gin-gonic/gin"
 
 	"github.com/MoeclubM/metafusion-auth/internal/config"
@@ -62,7 +63,9 @@ func main() {
 	log.Printf("auth issuer=%s audience=%s", issuer.Issuer(), issuer.Audience())
 
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
+	metrics := telemetry.New(s.DB, "auth")
+	defer metrics.Close()
+	r.Use(metrics.Middleware(), gin.Recovery())
 	// 网关用 CF-Connecting-IP 还原真实客户端后转发，XFF 形状常是「客户端, 客户端」。
 	// 配置非法必须拒绝启动：静默退化成"无可信代理"会让 ClientIP() 恒等于网关容器 IP，
 	// 登录守卫与 PAT 限流的桶键（IP）随即退化成全站共享一个桶——而那种退化在功能上表现正常，没人会发现。

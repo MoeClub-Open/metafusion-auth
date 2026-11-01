@@ -315,7 +315,7 @@ function OAuthClientsPanel() {
             />
             <span className="text-[11px] text-text-body">{t("oauth.field.trusted")}</span>
           </label>
-          <p className="text-[11px] text-amber-400/80 leading-relaxed">{t("oauth.field.trustedHint")}</p>
+          <p className="text-[11px] text-warn leading-relaxed">{t("oauth.field.trustedHint")}</p>
           <div className="flex items-center gap-2">
             <button type="submit" disabled={busy} className={primaryButtonClass}>
               {busy ? t("action.creating") : t("oauth.create")}
@@ -372,10 +372,10 @@ function OAuthClientsPanel() {
         open={secret != null}
         onClose={() => setSecret(null)}
         title={t("oauth.secretTitle")}
-        icon={<KeyRound className="w-4 h-4 text-amber-400" />}
+        icon={<KeyRound className="w-4 h-4 text-warn" />}
       >
         <div className="space-y-3 text-xs">
-          <p className="p-2.5 rounded-control bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 leading-relaxed">
+          <p className="p-2.5 rounded-control bg-warn/10 border border-warn/30 text-[11px] text-warn leading-relaxed">
             {t("oauth.secretWarn")}
           </p>
           <div>

@@ -150,9 +150,9 @@ function SettingsPanel() {
         actions={<RefreshButton onClick={settings.reload} loading={settings.loading} />}
       />
 
-      <div className="p-3 rounded-card bg-sky-500/[0.06] border border-sky-500/20 flex items-start gap-2">
-        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-sky-300" />
-        <p className="text-[11px] text-sky-100/80 leading-relaxed">{t("instance.writeHint")}</p>
+      <div className="p-3 rounded-card bg-info/[0.06] border border-info/20 flex items-start gap-2">
+        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-info" />
+        <p className="text-[11px] text-info leading-relaxed">{t("instance.writeHint")}</p>
       </div>
 
       {message ? (

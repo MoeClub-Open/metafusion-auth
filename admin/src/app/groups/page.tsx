@@ -102,7 +102,7 @@ function MultilingualFields({
       <div className="flex items-center justify-between gap-2">
         <span className={labelClass + " mb-0"}>
           {label}
-          {required ? <span className="text-rose-400 ml-1">*</span> : null}
+          {required ? <span className="text-danger ml-1">*</span> : null}
         </span>
         {required ? <span className="text-[10px] text-text-faint font-mono">{t("groups.allLocalesRequired")}</span> : null}
       </div>
@@ -333,7 +333,7 @@ function GroupsPanel() {
                             setMessage(null);
                             setDeleteTarget(group);
                           }}
-                          className="px-2 py-1 rounded-chip bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[11px] transition-colors duration-fast ease-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
+                          className="px-2 py-1 rounded-chip bg-danger/15 hover:bg-danger/25 text-danger text-[11px] transition-colors duration-fast ease-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" />
                           <span>{t("action.delete")}</span>
@@ -448,9 +448,9 @@ function GroupsPanel() {
             {selectedCustom.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {selectedCustom.map((code) => (
-                  <span key={code} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-chip bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-mono">
+                  <span key={code} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-chip bg-info/15 border border-info/30 text-info text-[10px] font-mono">
                     {code}
-                    <button type="button" onClick={() => togglePermission(code)} className="hover:text-rose-300 cursor-pointer" aria-label={t("action.remove")}>
+                    <button type="button" onClick={() => togglePermission(code)} className="hover:text-danger cursor-pointer" aria-label={t("action.remove")}>
                       <X className="w-3 h-3" />
                     </button>
                   </span>

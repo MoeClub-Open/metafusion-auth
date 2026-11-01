@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MoeclubM/metafusion-auth/internal/audit"
+	"github.com/MoeclubM/metafusion-auth/internal/telemetry"
 )
 
 // User 是账号的对外投影；password_hash 永不出现在 JSON 里。
@@ -251,7 +252,7 @@ func (s *Store) Init(ctx context.Context) error { return s.Migrate(ctx) }
 // 不选择、合并或删除任何存量账号；管理员需按 README 先修复冲突再重试。
 func (s *Store) Migrate(ctx context.Context) error {
 	return s.write(ctx, func(tx *sql.Tx) error {
-		for _, ddl := range []string{schema, audit.Schema, seedClients} {
+		for _, ddl := range []string{schema, audit.Schema, telemetry.Schema, auditCleanupSchema, seedClients} {
 			if _, err := tx.ExecContext(ctx, ddl); err != nil {
 				return err
 			}

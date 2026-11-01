@@ -1,14 +1,6 @@
 "use client";
 
-// 审计留痕（只读）：过滤 + 分页列表。契约：docs/architecture/audit-log.md §5。
-//
-// 边界：唯一读取端点是账号服务的 GET /api/admin/audit-logs（权限码 auth.audit.read），
-// 排序由服务端固定为 occurred_at DESC, id DESC；本页只做列表 + 过滤 + 分页——契约 §5 明确
-// 不做导出/图表/详情抽屉。
-//
-// changes 的脱敏由写入侧负责（§4）：界面**原样展示** "[redacted]" 与 "a***@domain"，
-// 不再二次加工——审计要的是库里真实的那一行。也正因为如此，这里不做"还原脱敏"之类的聪明事。
-
+// 操作审计、API 汇总与有权限的日志清理。
 import React, { useCallback, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, FileClock, Search } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -23,6 +15,8 @@ import {
   type AuditLogPage,
   type AuditLogQuery,
 } from "@/lib/endpoints";
+import { APIStatistics } from "@/components/APIStatistics";
+import { LogCleanup } from "@/components/LogCleanup";
 import { RequirePermission } from "@/components/PermissionGate";
 import {
   Chip,
@@ -43,7 +37,7 @@ const EMPTY_PAGE: AuditLogPage = { items: [], total: 0, page: 1, per_page: AUDIT
 const DASH = "—";
 
 const pagerButtonClass =
-  "px-2.5 py-1 rounded-chip bg-surfaceSubtle hover:bg-surfaceHover border border-line text-[11px] text-text-body transition-colors duration-fast ease-soft cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1";
+  "px-2.5 py-1 rounded-control bg-surfaceSubtle hover:bg-surfaceHover border border-line text-[11px] text-text-body transition-colors duration-fast ease-soft cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1";
 
 /** 表单草稿：值都是界面的形状（时间是无时区的本地墙钟），提交时才转成接口要的形状。 */
 interface FilterDraft {
@@ -345,7 +339,7 @@ function AuditPanel() {
                         <span className="text-[10px] font-mono text-text-faint">{entry.result || DASH}</span>
                       )}
                       {entry.error_code ? (
-                        <div className="mt-1 text-[10px] font-mono text-rose-300 break-all">{entry.error_code}</div>
+                        <div className="mt-1 text-[10px] font-mono text-danger break-all">{entry.error_code}</div>
                       ) : null}
                       {entry.http_status ? (
                         <div className="mt-1 text-[10px] font-mono text-text-faint">HTTP {entry.http_status}</div>
@@ -400,14 +394,22 @@ function AuditPanel() {
           </div>
         </div>
       ) : null}
+      <LogCleanup kind="audit" onCleaned={logs.reload} />
     </div>
   );
 }
 
 export default function AuditPage() {
+  const { t } = useI18n();
+  const [tab, setTab] = useState<"audit" | "statistics">("audit");
   return (
     <RequirePermission code={AUTH_AUDIT_READ}>
-      <AuditPanel />
+      <div className="space-y-5">
+        <div aria-label={t("nav.audit")} className="flex gap-1 border-b border-line-subtle">
+          {(["audit", "statistics"] as const).map((value) => <button type="button" key={value} aria-pressed={tab === value} className={`border-b-2 px-3 py-2 text-sm ${tab === value ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text-strong"}`} onClick={() => setTab(value)}>{t(`logs.${value}`)}</button>)}
+        </div>
+        {tab === "audit" ? <AuditPanel /> : <APIStatistics />}
+      </div>
     </RequirePermission>
   );
 }

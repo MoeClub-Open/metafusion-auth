@@ -24,6 +24,7 @@ import (
 // 动作码只增不改：改名等于把历史记录切成两段，聚合查询会断。
 func auditActions() map[string]string {
 	return map[string]string{
+		"POST /api/admin/log-cleanup":                     "audit.logs_cleaned",
 		"POST /api/setup":                                 "setup.completed",
 		"POST /api/auth/login":                            "session.login",
 		"POST /api/auth/logout":                           "session.logged_out",

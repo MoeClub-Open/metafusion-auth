@@ -1,7 +1,7 @@
 import type { MeUser } from "./endpoints";
 
 // 权限码：账号服务持有全量码表并装进权限组，各子系统解释自己那些码。
-// 本应用只用到账号域的六条；判定与账号服务 store.Can 逐字同口径。
+// 判定与账号服务 store.Can 使用同一口径。
 
 export const AUTH_USERS_MANAGE = "auth.users.manage";
 export const AUTH_GROUPS_MANAGE = "auth.groups.manage";
