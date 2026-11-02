@@ -109,7 +109,7 @@ export function WritableField({
       <div className="flex flex-wrap items-baseline gap-2">
         <span title={[settingKey, hint].filter(Boolean).join("\n")} className="text-xs font-medium text-text-strong">{label}</span>
         {dirty ? <Chip tone="warn">{t("instance.pending")}</Chip> : null}
-        {spec.impact === "high" ? <Chip tone="danger">{t("instance.impactHigh")}</Chip> : null}
+        {dirty && spec.impact === "high" ? <Chip tone="danger">{t("instance.impactHigh")}</Chip> : null}
       </div>
 
       <div className="min-w-0">
@@ -152,7 +152,7 @@ export function WritableField({
           </label>
           <textarea
             id={`instance-${settingKey}`}
-            rows={3}
+            rows={2}
             value={String(raw ?? "")}
             disabled={busy}
             onChange={(event) => onEdit(settingKey, event.target.value)}

@@ -15,7 +15,7 @@
 // 服务端 requirePermission 才是唯一授权断言。影响准入/防护的改动保存前过二次确认。
 
 import React, { useMemo, useState } from "react";
-import { Info, Pencil, ServerCog, Telescope } from "lucide-react";
+import { Pencil, ServerCog, Telescope } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useSession } from "@/lib/session";
 import { useResource } from "@/lib/useResource";
@@ -149,11 +149,6 @@ function SettingsPanel() {
         actions={<RefreshButton onClick={settings.reload} loading={settings.loading} />}
       />
 
-      <div className="p-3 rounded-card bg-info/[0.06] border border-info/20 flex items-start gap-2">
-        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-info" />
-        <p className="text-[11px] text-info leading-relaxed">{t("instance.writeHint")}</p>
-      </div>
-
       {message ? (
         <div data-mf-settings-message={message.kind}>
           <StatusMessage kind={message.kind} text={message.text} />
@@ -228,8 +223,8 @@ function SettingsPanel() {
         </div>
       ) : null}
 
-      <div className="p-4 rounded-card bg-surfaceSubtle border border-line-subtle space-y-3">
-        <h3 className="text-sm font-semibold text-text-strong">{t("instance.identityTitle")}</h3>
+      <details className="space-y-3 border-t border-line-subtle pt-3">
+        <summary className="w-fit cursor-pointer text-xs font-medium text-text-muted">{t("instance.identityTitle")}</summary>
         <div className="grid gap-2 sm:grid-cols-2 text-[11px]">
           <div className="space-y-0.5">
             <div className="font-mono text-text-faint">{t("instance.identityUsername")}</div>
@@ -259,9 +254,8 @@ function SettingsPanel() {
               (user?.permissions ?? []).map((code) => <Chip key={code}>{code}</Chip>)
             )}
           </div>
-          <p className="text-[10px] text-text-faint leading-relaxed">{t("instance.identityPermissionsHint")}</p>
         </div>
-      </div>
+      </details>
 
       <ConfirmDialog
         open={confirmOpen}
