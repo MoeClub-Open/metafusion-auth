@@ -69,9 +69,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => { announceAdminNavigation(); }, [pathname, searchParams]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-text-strong">
+    <div data-mf-admin className="min-h-screen flex flex-col bg-background text-text-strong">
       <header hidden={embedded} className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-page items-center justify-between gap-2 px-4 sm:px-6">
+        <div className="mx-auto flex h-12 w-full items-center justify-between gap-2 px-4 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <a href="/admin" aria-label={t("app.backToHub")} title={t("app.backToHub")} className="inline-flex h-11 w-11 sm:w-auto shrink-0 items-center justify-center gap-1 text-xs text-text-muted hover:text-text-strong"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">{t("app.backToHub")}</span></a>
             <span className="hidden text-text-faint sm:inline">/</span>
@@ -86,12 +86,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-page flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
+      <div className="mx-auto flex w-full flex-1 flex-col gap-4 px-4 py-3 lg:flex-row">
         {status === "ready" && canEnterAdmin(user) && visibleNav.length > 0 ? (
-          <aside className="w-full shrink-0 lg:w-56">
-            <div className="lg:hidden rounded-card border border-line-subtle bg-surfaceSubtle p-3">
-              <label htmlFor="account-admin-section" className="mb-2 block text-xs font-medium text-text-muted">{t("nav.section")}</label>
-              <select id="account-admin-section" value={activeHref ?? ""} onChange={(e) => { prepareAdminNavigation("/admin/account" + e.target.value); if (embedded) router.replace(e.target.value); else router.push(e.target.value); }} className="w-full rounded-control border border-line bg-surface px-3 py-2.5 text-sm text-text-strong">
+          <aside className="w-full shrink-0 lg:w-[200px]">
+            <div className="flex items-center gap-2 lg:hidden">
+              <label htmlFor="account-admin-section" className="sr-only">{t("nav.section")}</label>
+              <select id="account-admin-section" value={activeHref ?? ""} onChange={(e) => { prepareAdminNavigation("/admin/account" + e.target.value); if (embedded) router.replace(e.target.value); else router.push(e.target.value); }} className="min-w-0 flex-1 rounded-control border border-line bg-surface px-2.5 py-2 text-sm text-text-strong">
                 {!activeHref ? <option value="" disabled>{t("nav.section")}</option> : null}
                 {visibleGroups.map((group) => (
                   <optgroup key={group.labelKey} label={t(group.labelKey)}>
@@ -99,26 +99,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </optgroup>
                 ))}
               </select>
-              {user ? <button type="button" onClick={() => void handleLogout()} disabled={signingOut} className="mt-3 inline-flex items-center gap-2 text-xs text-text-muted disabled:opacity-50"><LogOut className="h-4 w-4" />{t("session.logout")}</button> : null}
+              {user ? <button type="button" onClick={() => void handleLogout()} disabled={signingOut} className="inline-flex shrink-0 items-center gap-1 text-xs text-text-muted disabled:opacity-50"><LogOut className="h-4 w-4" />{t("session.logout")}</button> : null}
             </div>
-            <nav aria-label={t("nav.section")} className={`hidden lg:block sticky ${embedded ? "top-6" : "top-24"} rounded-card border border-line-subtle bg-surfaceSubtle p-2`}>
+            <nav aria-label={t("nav.section")} className={`hidden lg:block sticky ${embedded ? "top-3" : "top-16"} p-1`}>
               {visibleGroups.map((group) => (
                 <div key={group.labelKey} className="py-1 first:pt-0 last:pb-0">
-                  <div className="px-3 py-2 text-[11px] font-semibold tracking-wide text-text-faint">{t(group.labelKey)}</div>
+                  <div className="px-2 py-1 text-[11px] font-semibold tracking-wide text-text-faint">{t(group.labelKey)}</div>
                   {group.items.map((item) => {
                     const active = activeHref === item.href;
-                    return <Link key={item.key} href={item.href} replace={embedded} onClick={(event) => prepareAdminNavigation(event.currentTarget.href, event)} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-control px-3 py-2.5 text-sm transition-colors ${active ? "bg-primary/15 font-semibold text-primary" : "text-text-muted hover:bg-surfaceHover hover:text-text-strong"}`}>
+                    return <Link key={item.key} href={item.href} replace={embedded} onClick={(event) => prepareAdminNavigation(event.currentTarget.href, event)} aria-current={active ? "page" : undefined} className={`flex items-center gap-2 rounded-control px-2 py-1.5 text-[13px] transition-colors ${active ? "bg-primary/15 font-semibold text-primary" : "text-text-muted hover:bg-surfaceHover hover:text-text-strong"}`}>
                       {item.icon}<span>{t(`nav.${item.key}`)}</span>
                     </Link>;
                   })}
                 </div>
               ))}
-              {user ? <button type="button" onClick={() => void handleLogout()} disabled={signingOut} className="mt-2 flex w-full items-center gap-3 border-t border-line-subtle px-3 py-3 text-left text-xs text-text-muted hover:text-text-strong disabled:opacity-50"><LogOut className="h-4 w-4" />{t("session.logout")}</button> : null}
+              {user ? <button type="button" onClick={() => void handleLogout()} disabled={signingOut} className="mt-2 flex w-full items-center gap-3 border-t border-line-subtle px-2 py-2 text-left text-xs text-text-muted hover:text-text-strong disabled:opacity-50"><LogOut className="h-4 w-4" />{t("session.logout")}</button> : null}
             </nav>
           </aside>
         ) : null}
 
-        <main className="min-w-0 flex-1 space-y-4">
+        <main data-mf-admin-content className="min-w-0 flex-1 space-y-3">
           {status === "loading" ? <LoadingBlock /> : null}
           {status === "error" ? <ErrorNotice message={error ?? t("session.failed")} onRetry={reload} permissionHint={t("session.failedHint")} /> : null}
           {status === "ready" && !user ? (

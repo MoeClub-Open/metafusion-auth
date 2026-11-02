@@ -255,11 +255,10 @@ function GroupsPanel() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <SectionHeader
         icon={<Shapes className="w-4 h-4 text-primary" />}
         title={t("groups.title")}
-        desc={t("groups.desc")}
         actions={
           <>
             <button type="button" onClick={openCreate} className={primaryButtonClass + " inline-flex items-center gap-1.5"}>
@@ -348,9 +347,8 @@ function GroupsPanel() {
         </div>
       ) : null}
 
-      <div className="p-4 rounded-card bg-surfaceSubtle border border-line-subtle space-y-3">
-        <h3 className="text-sm font-semibold text-text-strong">{t("groups.permsTitle")}</h3>
-        <p className="text-[11px] text-text-muted leading-relaxed">{t("groups.permsDesc")}</p>
+      <details className="space-y-3 border-t border-line-subtle pt-3">
+        <summary className="w-fit cursor-pointer text-sm font-medium text-text-strong">{t("groups.permsTitle")}</summary>
         {catalog.error ? (
           <ErrorNotice message={catalog.error} onRetry={catalog.reload} permissionHint={t("groups.needPermission")} />
         ) : null}
@@ -373,7 +371,7 @@ function GroupsPanel() {
             </ul>
           </div>
         ))}
-      </div>
+      </details>
 
       <Modal
         open={modalOpen}
@@ -382,7 +380,7 @@ function GroupsPanel() {
         icon={<Shapes className="w-4 h-4 text-primary" />}
         maxWidth="max-w-2xl"
       >
-        <div className="space-y-4 text-xs">
+        <div className="space-y-3 text-xs">
           {message ? <StatusMessage kind={message.kind} text={message.text} /> : null}
 
           <div className="grid gap-3 sm:grid-cols-2">

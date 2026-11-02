@@ -179,12 +179,16 @@ function UsersPanel() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <SectionHeader
         icon={<Users className="w-4 h-4 text-primary" />}
         title={t("users.title")}
-        desc={t("users.desc")}
-        actions={<RefreshButton onClick={users.reload} loading={users.loading} />}
+        actions={<>
+          {!createOpen && <button type="button" onClick={() => { setCreateOpen(true); setMessage(null); }} className={primaryButtonClass + " inline-flex items-center gap-1.5"}>
+            <Plus className="w-3.5 h-3.5" />{t("users.create")}
+          </button>}
+          <RefreshButton onClick={users.reload} loading={users.loading} />
+        </>}
       />
 
       {createOpen ? (
@@ -240,19 +244,7 @@ function UsersPanel() {
             />
           </div>
         </form>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setCreateOpen(true);
-            setMessage(null);
-          }}
-          className="px-3 py-1.5 rounded-control bg-primary/15 hover:bg-primary/25 text-primary text-xs font-semibold transition-colors duration-fast ease-soft cursor-pointer inline-flex items-center gap-1.5"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>{t("users.create")}</span>
-        </button>
-      )}
+      ) : null}
 
       {users.error ? (
         <ErrorNotice message={users.error} onRetry={users.reload} permissionHint={t("users.needPermission")} />
@@ -261,7 +253,8 @@ function UsersPanel() {
       {message && !editing ? <StatusMessage kind={message.kind} text={message.text} /> : null}
 
 
-      <div className="relative flex items-center max-w-md">
+      <div className="flex flex-wrap items-center gap-3">
+      <div className="relative flex min-w-0 flex-1 items-center max-w-md">
         <Search className="absolute left-3 w-3.5 h-3.5 text-text-faint" />
         <input
           type="text"
@@ -274,8 +267,9 @@ function UsersPanel() {
       </div>
 
       {!users.loading && !users.error ? (
-        <p className="text-[11px] text-text-faint font-mono">{t("users.total", { count: visibleUsers.length })}</p>
+        <span className="text-xs text-text-muted">{t("users.total", { count: visibleUsers.length })}</span>
       ) : null}
+      </div>
 
       {users.loading && users.data.length === 0 ? <LoadingBlock /> : null}
       {!users.loading && !users.error && visibleUsers.length === 0 ? (
@@ -285,10 +279,12 @@ function UsersPanel() {
       {visibleUsers.length > 0 ? (
         <div className="rounded-card border border-line-subtle bg-surface/40 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full min-w-[960px] text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-line-subtle bg-surfaceSubtle text-text-muted font-mono">
                   <th className="py-2.5 px-3 font-medium">{t("users.col.user")}</th>
+                  <th className="py-2.5 px-3 font-medium">{t("users.field.email")}</th>
+                  <th className="py-2.5 px-3 font-medium">{t("users.col.id")}</th>
                   <th className="py-2.5 px-3 font-medium">{t("users.col.status")}</th>
                   <th className="py-2.5 px-3 font-medium">{t("users.col.groups")}</th>
                   <th className="py-2.5 px-3 font-medium text-right">{t("users.col.actions")}</th>
@@ -304,12 +300,9 @@ function UsersPanel() {
                           <span className="font-semibold text-text-strong">{u.username}</span>
                           {isSelf ? <Chip tone="neutral">{t("users.you")}</Chip> : null}
                         </div>
-                        {/* 邮箱与 ID 挤在同一行：这两个字段没有独立列，凭一行裸值认不出是什么。 */}
-                        <div className="text-[10px] text-text-faint font-mono break-all">
-                          {u.email ? t("users.inlineEmail", { email: u.email }) + " · " : ""}
-                          {t("users.inlineId", { id: u.id })}
-                        </div>
                       </td>
+                      <td className="text-text-body">{u.email || "—"}</td>
+                      <td className="whitespace-nowrap font-mono text-xs text-text-muted">{u.id}</td>
                       <td className="py-2.5 px-3">
                         <Chip tone={u.banned ? "danger" : "ok"}>{u.banned ? t("users.statusBanned") : t("users.statusActive")}</Chip>
                       </td>
@@ -336,7 +329,7 @@ function UsersPanel() {
                           </button>
                           {/* 封禁自己会被服务端以 cannot_ban_self 拒（封完只能求别人解开），
                               这里提前置灰并说明，而不是让管理员点了才知道。 */}
-                          <span title={u.banned ? "" : t("users.selfBanHint")}>
+                          <span title={!u.banned && isSelf ? t("users.selfBanHint") : ""}>
                             <button
                               type="button"
                               disabled={!u.banned && isSelf}
@@ -372,7 +365,7 @@ function UsersPanel() {
         icon={<ShieldCheck className="w-4 h-4 text-primary" />}
       >
         {editing ? (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-3 text-xs">
             <div className="p-2.5 rounded-control bg-surfaceSubtle border border-line-subtle font-mono text-[11px] text-text-muted break-all">
               {editing.username} · {editing.id}
             </div>

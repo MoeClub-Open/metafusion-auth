@@ -142,11 +142,10 @@ function SettingsPanel() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <SectionHeader
         icon={<ServerCog className="w-4 h-4 text-primary" />}
         title={t("instance.title")}
-        desc={t("instance.desc")}
         actions={<RefreshButton onClick={settings.reload} loading={settings.loading} />}
       />
 
@@ -173,7 +172,6 @@ function SettingsPanel() {
           <GroupHeader
             icon={<Pencil className="w-3.5 h-3.5" />}
             title={t("instance.writableTitle")}
-            desc={t("instance.writableDesc")}
           />
 
           {writableKeys.map((key) => {
@@ -218,7 +216,6 @@ function SettingsPanel() {
           <GroupHeader
             icon={<Telescope className="w-3.5 h-3.5" />}
             title={t("instance.readonlyTitle")}
-            desc={t("instance.readonlyDesc")}
           />
           {readonlyKeys.map((key) => (
             <ReadonlyRow
@@ -233,7 +230,6 @@ function SettingsPanel() {
 
       <div className="p-4 rounded-card bg-surfaceSubtle border border-line-subtle space-y-3">
         <h3 className="text-sm font-semibold text-text-strong">{t("instance.identityTitle")}</h3>
-        <p className="text-[11px] text-text-muted leading-relaxed">{t("instance.identityDesc")}</p>
         <div className="grid gap-2 sm:grid-cols-2 text-[11px]">
           <div className="space-y-0.5">
             <div className="font-mono text-text-faint">{t("instance.identityUsername")}</div>

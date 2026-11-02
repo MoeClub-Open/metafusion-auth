@@ -110,7 +110,7 @@ function KeysPanel() {
     finally { setBusy(false); }
   };
 
-  return <div className="space-y-4">
+  return <div className="space-y-3">
     <form onSubmit={(event) => { event.preventDefault(); setQuery({ ...draft, owner_id: draft.owner_id?.trim(), limit: query.limit, offset: 0 }); }} className="space-y-3 rounded-card border border-line-subtle bg-surfaceSubtle p-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className={labelClass}>{t("credentials.filter.owner")}<input className={`${inputClass} mt-1`} value={draft.owner_id} onChange={(event) => setDraft({ ...draft, owner_id: event.target.value })} /></label>
@@ -132,7 +132,7 @@ function KeysPanel() {
       <Pager total={result.data.total} limit={query.limit ?? 50} offset={query.offset ?? 0} hasMore={result.data.has_more} loading={result.loading} onPage={(offset) => setQuery({ ...query, offset })} onLimit={(limit) => setQuery({ ...query, limit, offset: 0 })} />
     </div> : null}
     <Modal open={editing !== null} title={t("credentials.editTitle")} onClose={() => setEditing(null)} busy={busy}>
-      <form onSubmit={save} className="space-y-4">
+      <form onSubmit={save} className="space-y-3">
         {editing ? <OwnerCell userId={editing.user_id} username={editing.username} /> : null}
         <label className={labelClass}>{t("credentials.field.name")}<input required maxLength={64} value={form.name} disabled={busy} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`${inputClass} mt-1`} /></label>
         <label className={labelClass}>{t("credentials.field.scopes")}<textarea rows={7} value={form.scopes} disabled={busy} onChange={(event) => setForm({ ...form, scopes: event.target.value })} className={`${inputClass} mt-1 font-mono`} /><span className="mt-1 block text-text-faint">{t("credentials.scopesHint")}</span></label>
@@ -169,7 +169,7 @@ function OAuthPanel({ view }: { view: "grants" | "tokens" }) {
     finally { setBusy(false); }
   };
 
-  return <div className="space-y-4">
+  return <div className="space-y-3">
     <form onSubmit={(event) => { event.preventDefault(); setQuery({ ...draft, owner_id: draft.owner_id?.trim(), client_id: draft.client_id?.trim(), limit: query.limit, offset: 0 }); }} className="space-y-3 rounded-card border border-line-subtle bg-surfaceSubtle p-4">
       <div className={`grid gap-3 ${isGrants ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         <label className={labelClass}>{t("credentials.filter.owner")}<input className={`${inputClass} mt-1`} value={draft.owner_id} onChange={(event) => setDraft({ ...draft, owner_id: event.target.value })} /></label>
@@ -215,8 +215,8 @@ export default function CredentialsPage() {
     setSelected(tabs[next]!);
     document.getElementById(`credential-tab-${tabs[next]}`)?.focus();
   };
-  return <div className="space-y-4">
-    <SectionHeader icon={<Fingerprint className="h-4 w-4 text-primary" />} title={t("credentials.title")} desc={t("credentials.desc")} />
+  return <div className="space-y-3">
+    <SectionHeader icon={<Fingerprint className="h-4 w-4 text-primary" />} title={t("credentials.title")} />
     <div className="flex flex-wrap gap-1 rounded-card border border-line-subtle bg-surfaceSubtle p-1" role="tablist" aria-label={t("credentials.title")}>{tabs.map((tab, index) => <button key={tab} id={`credential-tab-${tab}`} type="button" role="tab" tabIndex={current === tab ? 0 : -1} aria-selected={current === tab} aria-controls={`credential-panel-${tab}`} onKeyDown={(event) => changeTabByKey(event, index)} onClick={() => setSelected(tab)} className={`rounded-control px-3 py-2 text-xs ${current === tab ? "bg-primary/15 font-semibold text-primary" : "text-text-muted hover:bg-surfaceHover"}`}>{t(`credentials.tab.${tab}`)}</button>)}</div>
     <div role="tabpanel" id={`credential-panel-${current}`} aria-labelledby={`credential-tab-${current}`} key={current}>{current === "keys" ? <KeysPanel /> : <OAuthPanel view={current} />}</div>
   </div>;

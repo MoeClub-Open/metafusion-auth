@@ -33,8 +33,8 @@ export function APIStatistics() {
   const pages = Math.max(1, Math.ceil(rows.length / 50));
   const currentPage = Math.min(page, pages);
   const format = (value: number) => value.toLocaleString(locale, { maximumFractionDigits: 1 });
-  return <div className="space-y-4">
-    <SectionHeader icon={<Activity className="size-4 text-primary" />} title={t("logs.statistics")} desc={t("logs.statisticsHint")} actions={<RefreshButton onClick={stats.reload} loading={stats.loading} />} />
+  return <div className="space-y-3">
+    <SectionHeader icon={<Activity className="size-4 text-primary" />} title={t("logs.statistics")} actions={<RefreshButton onClick={stats.reload} loading={stats.loading} />} />
     <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => {
       event.preventDefault();
       if (Date.parse(draft.to) - Date.parse(draft.from) >= 90 * 86400000) { setFormError(t("logs.rangeLimit")); return; }
@@ -45,16 +45,14 @@ export function APIStatistics() {
       <label className={labelClass}>{t("audit.filter.service")}<select value={draft.service} onChange={(event) => setDraft({ ...draft, service: event.target.value })} className={inputClass + " mt-1 block"}>
         <option value="">{t("logs.allServices")}</option>{AUDIT_SERVICES.map((value) => <option key={value} value={value}>{value}</option>)}
       </select></label>
-      <button className={primaryButtonClass} type="submit">{t("audit.apply")}</button>
-    </form>
-    {formError && <p role="alert" className="text-xs text-danger">{formError}</p>}
-    {stats.error && <ErrorNotice message={stats.error} onRetry={stats.reload} />}
-    <div className="flex flex-wrap items-end gap-3">
       <label className={labelClass}>{t("logs.routeSearch")}<input type="search" value={route} onChange={event => { setRoute(event.target.value); setPage(1); }} className={inputClass + " mt-1 block"} /></label>
       <label className={labelClass}>{t("logs.status")}<select value={status} onChange={event => { setStatus(event.target.value); setPage(1); }} className={inputClass + " mt-1 block"}>
         {["", "errors", "2", "3", "4", "5"].map(value => <option key={value} value={value}>{t(`logs.statusGroup.${value || "all"}`)}</option>)}
       </select></label>
-    </div>
+      <button className={primaryButtonClass} type="submit">{t("audit.apply")}</button>
+    </form>
+    {formError && <p role="alert" className="text-xs text-danger">{formError}</p>}
+    {stats.error && <ErrorNotice message={stats.error} onRetry={stats.reload} />}
     {stats.loading ? <LoadingBlock /> : !stats.error && <>
       <dl className="flex flex-wrap gap-x-8 gap-y-3 border-y border-line-subtle py-3 text-xs">
         <div><dt className="text-text-muted">{t("logs.requests")}</dt><dd className="mt-1 text-lg font-semibold text-text-strong">{format(total.requests)}</dd></div>

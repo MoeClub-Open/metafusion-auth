@@ -1,6 +1,6 @@
 "use client";
 
-// OAuth 客户端分组表：一个分组 = 标题 + "这组是什么、去哪儿维护" + 该组的行。
+// OAuth 客户端分组表。
 //
 // 纯呈现：不取数、不发请求，动作由页面（app/oauth-clients/page.tsx）注入——
 // "谁能改什么"只在一个地方判定，表里不重复做判断。
@@ -23,13 +23,11 @@ export interface OAuthClientActions {
 
 export function OAuthClientGroup({
   title,
-  desc,
   emptyText,
   clients,
   actions,
 }: {
   title: string;
-  desc: string;
   /** 本组为空时的说明：分组后"空表"必须说清是这一组空，而不是整页没数据。 */
   emptyText: string;
   clients: OAuthClient[];
@@ -45,7 +43,6 @@ export function OAuthClientGroup({
           <span>{title}</span>
           <span className="font-mono text-[10px] text-text-muted">{clients.length}</span>
         </h3>
-        <p className="text-[11px] text-text-muted leading-relaxed mt-1 max-w-3xl">{desc}</p>
       </div>
 
       {clients.length === 0 ? (

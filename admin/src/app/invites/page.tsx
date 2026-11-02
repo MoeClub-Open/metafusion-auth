@@ -93,11 +93,10 @@ function InvitesPanel() {
   const statusTone = { active: "ok", revoked: "danger", exhausted: "warn", expired: "warn" } as const;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <SectionHeader
         icon={<Ticket className="w-4 h-4 text-primary" />}
         title={t("invites.title")}
-        desc={t("invites.desc")}
         actions={
           <>
             <button

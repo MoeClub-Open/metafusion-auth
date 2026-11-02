@@ -10,22 +10,19 @@ import { useI18n } from "@/i18n/I18nProvider";
 export function SectionHeader({
   icon,
   title,
-  desc,
   actions,
 }: {
   icon: React.ReactNode;
   title: string;
-  desc: string;
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-4 rounded-card bg-surfaceSubtle border border-line-subtle">
+    <div className="flex min-h-8 flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
         <h2 className="text-sm font-semibold text-text-strong flex items-center gap-2">
           {icon}
           <span>{title}</span>
         </h2>
-        <p className="text-[11px] text-text-muted leading-relaxed mt-1 max-w-3xl">{desc}</p>
       </div>
       {actions ? <div className="flex items-center gap-2 shrink-0">{actions}</div> : null}
     </div>
@@ -89,7 +86,6 @@ export function ForbiddenBlock({ permission }: { permission: string }) {
         <span>{t("permission.deniedTitle")}</span>
       </div>
       <p className="text-[11px] text-warn leading-relaxed">{t("permission.deniedDesc", { code: permission })}</p>
-      <p className="text-[11px] text-warn leading-relaxed">{t("permission.serverSideHint")}</p>
     </div>
   );
 }
@@ -97,7 +93,7 @@ export function ForbiddenBlock({ permission }: { permission: string }) {
 export function LoadingBlock() {
   const { t } = useI18n();
   return (
-    <div className="py-10 text-center text-xs text-text-faint font-mono flex items-center justify-center gap-2">
+    <div className="py-6 text-center text-xs text-text-faint flex items-center justify-center gap-2">
       <Loader2 className="w-4 h-4 animate-spin text-primary" />
       <span>{t("state.loading")}</span>
     </div>
@@ -107,7 +103,7 @@ export function LoadingBlock() {
 export function EmptyBlock({ text }: { text?: string }) {
   const { t } = useI18n();
   return (
-    <div className="p-6 rounded-card border border-dashed border-line text-center text-xs text-text-faint font-mono flex items-center justify-center gap-2">
+    <div className="py-6 border-y border-line-subtle text-center text-xs text-text-faint flex items-center justify-center gap-2">
       <Inbox className="w-4 h-4" />
       <span>{text ?? t("state.empty")}</span>
     </div>

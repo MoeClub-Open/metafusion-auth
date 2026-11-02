@@ -220,11 +220,10 @@ function OAuthClientsPanel() {
   const thirdPartyClients = clients.data.filter((client) => !isSystemClient(client));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <SectionHeader
         icon={<KeyRound className="w-4 h-4 text-primary" />}
         title={t("oauth.title")}
-        desc={t("oauth.desc")}
         actions={
           <>
             <button
@@ -338,17 +337,15 @@ function OAuthClientsPanel() {
       {clients.loading && clients.data.length === 0 ? (
         <LoadingBlock />
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-3">
           <OAuthClientGroup
             title={t("oauth.group.system")}
-            desc={t("oauth.group.systemDesc")}
             emptyText={t("oauth.group.systemEmpty")}
             clients={systemClients}
             actions={actions}
           />
           <OAuthClientGroup
             title={t("oauth.group.thirdParty")}
-            desc={t("oauth.group.thirdPartyDesc")}
             emptyText={t("oauth.group.thirdPartyEmpty")}
             clients={thirdPartyClients}
             actions={actions}

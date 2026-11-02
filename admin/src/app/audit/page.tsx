@@ -171,20 +171,18 @@ function AuditPanel() {
   const goto = (page: number) => setApplied((prev) => ({ ...prev, page }));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <SectionHeader
         icon={<FileClock className="w-4 h-4 text-primary" />}
         title={t("audit.title")}
-        desc={t("audit.desc")}
         actions={<RefreshButton onClick={logs.reload} loading={logs.loading} />}
       />
 
-      <form onSubmit={submit} className="p-4 rounded-card bg-surfaceSubtle border border-line-subtle space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <form onSubmit={submit} className="space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <Field
             id="audit-service"
             label={t("audit.filter.service")}
-            hint={t("audit.filter.serviceHint", { services: AUDIT_SERVICES.join(" / ") })}
           >
             <input
               id="audit-service"
@@ -201,7 +199,7 @@ function AuditPanel() {
             </datalist>
           </Field>
 
-          <Field id="audit-action" label={t("audit.filter.action")} hint={t("audit.filter.actionHint")}>
+          <Field id="audit-action" label={t("audit.filter.action")}>
             <input
               id="audit-action"
               type="text"
@@ -209,12 +207,14 @@ function AuditPanel() {
               onChange={(e) => setDraft((prev) => ({ ...prev, action: e.target.value }))}
               className={inputClass + " font-mono"}
               placeholder={t("audit.filter.actionPlaceholder")}
+              title={t("audit.filter.actionHint")}
             />
           </Field>
 
-          <Field id="audit-actor" label={t("audit.filter.actor")} hint={t("audit.filter.actorHint")}>
+          <Field id="audit-actor" label={t("audit.filter.actor")}>
             <input
               id="audit-actor"
+              title={t("audit.filter.actorHint")}
               type="text"
               value={draft.actor}
               onChange={(e) => setDraft((prev) => ({ ...prev, actor: e.target.value }))}
@@ -421,7 +421,7 @@ export default function AuditPage() {
   };
   return (
     <RequirePermission code={AUTH_AUDIT_READ}>
-      <div className="space-y-5">
+      <div className="space-y-3">
         <div aria-label={t("nav.audit")} className="flex gap-1 border-b border-line-subtle">
           {(["audit", "statistics"] as const).map((value) => <button type="button" key={value} aria-pressed={tab === value} className={`border-b-2 px-3 py-2 text-sm ${tab === value ? "border-primary text-primary" : "border-transparent text-text-muted hover:text-text-strong"}`} onClick={() => selectTab(value)}>{t(`logs.${value}`)}</button>)}
         </div>

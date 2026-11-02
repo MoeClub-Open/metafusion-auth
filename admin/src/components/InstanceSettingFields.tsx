@@ -5,9 +5,8 @@
 // 本文件只按传进来的 spec 选控件，避免"渲染说可写、提交说不可写"这种两处口径。
 
 import React from "react";
-import { Info } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
-import { Chip, inputClass, labelClass } from "@/components/ui/blocks";
+import { Chip, inputClass } from "@/components/ui/blocks";
 import {
   parseCodes,
   valueKind,
@@ -18,13 +17,12 @@ import {
 } from "@/lib/instanceSettings";
 
 /** 分组小标题：可配置 / 只读观测两组共用。 */
-export function GroupHeader({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+export function GroupHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
     <div className="flex items-start gap-2 px-1 pt-2">
       <span className="text-primary mt-0.5">{icon}</span>
       <div className="min-w-0">
         <h3 className="text-xs font-semibold text-text-strong">{title}</h3>
-        <p className="text-[11px] text-text-muted leading-relaxed mt-0.5 max-w-3xl">{desc}</p>
       </div>
     </div>
   );
@@ -39,14 +37,14 @@ export function ReadonlyRow({ settingKey, value, note }: { settingKey: string; v
     <div
       data-mf-setting-key={settingKey}
       data-mf-setting-group="readonly"
-      className="p-3.5 rounded-card border border-line-subtle bg-surfaceSubtle space-y-2"
+      className="grid items-start gap-2 border-b border-line-subtle py-2 sm:grid-cols-[15rem_minmax(0,1fr)]"
     >
       <div className="flex flex-wrap items-baseline gap-2">
-        <span className="text-xs font-medium text-text-strong">{tr(`instance.setting.${settingKey}`, settingKey)}</span>
-        <code className="text-[10px] font-mono text-text-faint break-all">{settingKey}</code>
+        <span title={[settingKey, hint, note].filter(Boolean).join("\n")} className="text-xs font-medium text-text-strong">{tr(`instance.setting.${settingKey}`, settingKey)}</span>
         <Chip>{t("instance.readonlyTag")}</Chip>
       </div>
 
+      <div className="min-w-0">
       {kind === "boolean" ? (
         <Chip tone={value ? "ok" : "neutral"}>{value ? t("instance.boolTrue") : t("instance.boolFalse")}</Chip>
       ) : null}
@@ -68,11 +66,7 @@ export function ReadonlyRow({ settingKey, value, note }: { settingKey: string; v
         </pre>
       ) : null}
 
-      {hint ? <p className="text-[10px] text-text-faint leading-relaxed">{hint}</p> : null}
-      <p className="text-[10px] text-warn leading-relaxed flex items-start gap-1.5">
-        <Info className="w-3 h-3 shrink-0 mt-0.5" />
-        <span>{note}</span>
-      </p>
+      </div>
     </div>
   );
 }
@@ -110,19 +104,20 @@ export function WritableField({
     <div
       data-mf-setting-key={settingKey}
       data-mf-setting-group="writable"
-      className={`p-3.5 rounded-card border bg-surfaceSubtle space-y-2 ${dirty ? "border-primary/40" : "border-line-subtle"}`}
+      className={`grid items-start gap-2 border-b py-2 sm:grid-cols-[15rem_minmax(0,1fr)] ${dirty ? "border-primary/40" : "border-line-subtle"}`}
     >
       <div className="flex flex-wrap items-baseline gap-2">
-        <span className="text-xs font-medium text-text-strong">{label}</span>
-        <code className="text-[10px] font-mono text-text-faint break-all">{settingKey}</code>
+        <span title={[settingKey, hint].filter(Boolean).join("\n")} className="text-xs font-medium text-text-strong">{label}</span>
         {dirty ? <Chip tone="warn">{t("instance.pending")}</Chip> : null}
         {spec.impact === "high" ? <Chip tone="danger">{t("instance.impactHigh")}</Chip> : null}
       </div>
 
+      <div className="min-w-0">
       {spec.control === "boolean" ? (
         <label className="inline-flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
+            aria-label={label}
             checked={raw === true}
             disabled={busy}
             onChange={(event) => onEdit(settingKey, event.target.checked)}
@@ -152,7 +147,7 @@ export function WritableField({
 
       {spec.control === "stringArray" ? (
         <div className="space-y-2">
-          <label className={labelClass} htmlFor={`instance-${settingKey}`}>
+          <label className="sr-only" htmlFor={`instance-${settingKey}`}>
             {t("instance.groupsLabel")}
           </label>
           <textarea
@@ -197,7 +192,7 @@ export function WritableField({
         </div>
       ) : null}
 
-      {hint ? <p className="text-[10px] text-text-faint leading-relaxed">{hint}</p> : null}
+      </div>
     </div>
   );
 }
