@@ -30,7 +30,7 @@ MetaFusion 统一账号与令牌服务：用户、会话、OAuth 2.0 / OIDC 与 
 | GET/POST | `/api/auth/invite` | 令牌 | 个人邀请页：我的邀请码台账与由我邀请进来的人（`items`/`members`/`can_create`）/ 新建邀请码（`note`/`max_uses`/`expires_in_days`） |
 | PUT | `/api/auth/password` | 令牌 | 修改自己的密码（`old_password`/`new_password`） |
 | POST | `/api/auth/logout-all` | 令牌 | 吊销该用户全部会话（`token_version` +1） |
-| GET | `/api/auth/credentials-status/{user_id}` | 匿名 | 下游核对用：`{user_id,token_version,banned}`；共享源为 `auth.users` |
+| GET | `/api/auth/credentials-status/{user_id}` | 内部 / 本人 | 下游核对用：`{user_id,token_version,banned}`；共享源为 `auth.users`。`X-Internal-Token`（`INTERNAL_API_TOKEN`，定长比较；未配置则服务身份 fail-closed）可查任意用户；本人会话仅可读自己；匿名 `401 authentication_required`（不泄露 `user_not_found` / `token_version` / `banned`）；跨用户 `403 forbidden`；内部身份下账号不存在统一 `404 user_not_found` |
 | GET | `/api/auth/oauth-grants` | 令牌 | 我授权过的第三方应用（`items`：`client_id`/`name`/`scopes`/`active`/`last_authorized_at`/`expires_at`） |
 | DELETE | `/api/auth/oauth-grants/{client_id}` | 令牌 | 撤回**我自己**对该应用的授权（删未过期令牌与未兑换授权码，回 `{"ok":true,"revoked":N}`；只作用于本人） |
 | GET/POST | `/api/auth/tokens` | 令牌 | 个人访问令牌（PAT）：列出**本人**的令牌 / 创建（`201` 回明文 + 元数据，明文只此一次），见「个人访问令牌」 |
@@ -325,6 +325,7 @@ COMMIT;
 | `AUTH_JWT_ALLOW_EPHEMERAL_KEY` | 空 | 本地开发开关：`1`/`true`/`yes`/`on` 时允许进程内临时密钥（生产不要开，启动会打 WARNING） |
 | `AUTH_JWT_ISSUER` / `AUTH_JWT_AUDIENCE` | `https://findverse.cc/api` / `metafusion` | 必须与主仓库一致 |
 | `AUTH_ACCOUNT_URL` | 空 | 未登录跳转的账号页绝对地址；为空则用站点相对路径 `/account` |
+| `INTERNAL_API_TOKEN` | 空 | 跨服务共享密钥；`GET /api/auth/credentials-status/{user_id}` 校验 `X-Internal-Token`（定长比较）。空 = 服务身份 fail-closed（目录/互动/存储必须同值注入，否则 H1/H2 核对会 `auth_unavailable`）；本人 Bearer 仍可读自己 |
 
 ## 运行
 

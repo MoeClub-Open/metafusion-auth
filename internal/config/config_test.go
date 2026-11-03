@@ -39,3 +39,17 @@ func TestLoadTrustedProxiesDefaultsEmpty(t *testing.T) {
 		t.Fatalf("未配置时 TrustedProxies = %q，期望空串（走 nettrust.Default）", got)
 	}
 }
+
+func TestLoadReadsInternalAPIToken(t *testing.T) {
+	t.Setenv("INTERNAL_API_TOKEN", "  svc-secret  ")
+	if got := Load().InternalAPIToken; got != "svc-secret" {
+		t.Fatalf("InternalAPIToken = %q，期望去空白后的原值", got)
+	}
+}
+
+func TestLoadInternalAPITokenDefaultsEmpty(t *testing.T) {
+	t.Setenv("INTERNAL_API_TOKEN", "")
+	if got := Load().InternalAPIToken; got != "" {
+		t.Fatalf("未配置时 InternalAPIToken = %q，期望空串（fail-closed）", got)
+	}
+}
