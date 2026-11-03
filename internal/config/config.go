@@ -15,13 +15,17 @@ type Config struct {
 	// 哪些对端算可信反向代理（TRUSTED_PROXIES，默认只信回环+RFC1918 私网）。
 	// 空串交给 internal/nettrust 的 Default；"none" 表示入口链上没有代理。
 	TrustedProxies string
+	// InternalAPIToken 是跨服务共享密钥（INTERNAL_API_TOKEN）。
+	// credentials-status 用 X-Internal-Token 校验服务身份；空串 fail-closed。
+	InternalAPIToken string
 }
 
 func Load() Config {
 	c := Config{
-		Port:           env("PORT", "8081"),
-		DatabaseURL:    env("DATABASE_URL", ""),
-		TrustedProxies: env("TRUSTED_PROXIES", ""),
+		Port:             env("PORT", "8081"),
+		DatabaseURL:      env("DATABASE_URL", ""),
+		TrustedProxies:   env("TRUSTED_PROXIES", ""),
+		InternalAPIToken: strings.TrimSpace(os.Getenv("INTERNAL_API_TOKEN")),
 	}
 	return c
 }

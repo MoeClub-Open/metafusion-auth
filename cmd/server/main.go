@@ -83,7 +83,14 @@ func main() {
 		c.Next()
 	})
 
-	handler.New(s).Register(r)
+	h := handler.New(s)
+	h.SetInternalToken(cfg.InternalAPIToken)
+	if cfg.InternalAPIToken == "" {
+		log.Print("INTERNAL_API_TOKEN is not configured: GET /api/auth/credentials-status/:user_id rejects service identity (fail-closed); self Bearer still allowed")
+	} else {
+		log.Print("INTERNAL_API_TOKEN is configured: credentials-status accepts X-Internal-Token service identity")
+	}
+	h.Register(r)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "live", "service": "metafusion-auth"})

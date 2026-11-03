@@ -47,6 +47,11 @@ type Handler struct {
 	// audit 是审计写入器（写跨服务共用的 audit.audit_log，见 internal/audit 与
 	// docs/architecture/audit-log.md）。为 nil 时审计中间件退化为空操作。
 	audit *audit.Recorder
+	// internalToken 是跨服务共享密钥（INTERNAL_API_TOKEN），供 credentials-status 服务身份。
+	// 空串 fail-closed：服务身份永不匹配。
+	internalToken string
+	// credentialsStatusFn 单测注入凭据快照；nil 时走 store.CredentialsStatus。
+	credentialsStatusFn func(context.Context, string) (store.CredentialsStatus, error)
 }
 
 func New(s *store.Store) *Handler {
@@ -398,12 +403,10 @@ func (h *Handler) registerAuth(api *gin.RouterGroup) {
 		respond(c, gin.H{"ok": true}, err)
 	})
 
-	// 凭据状态：下游 JWKS 验签后核对 token_version / banned。共享源是 auth.users（DB），
-	// 匿名可读（user id 本就在 JWT sub 里）；账号不存在统一 404。
-	api.GET("/auth/credentials-status/:user_id", func(c *gin.Context) {
-		st, err := s.CredentialsStatus(c.Request.Context(), c.Param("user_id"))
-		respond(c, st, err)
-	})
+	// 凭据状态：下游 JWKS 验签后核对 token_version / banned。共享源是 auth.users（DB）。
+	// 鉴权：X-Internal-Token（INTERNAL_API_TOKEN，定长比较，空配置 fail-closed）可查任意用户；
+	// 本人会话仅可读自己；匿名 401；跨用户 403。禁止匿名窥探 user_not_found / token_version / banned。
+	api.GET("/auth/credentials-status/:user_id", h.credentialsStatus)
 
 	// 用户自助管理自己的第三方授权（设置页的"已授权应用"）。
 	// 与管理员的 /admin/users/{id}/revoke-oauth-tokens 的区别是**归属**：
@@ -708,7 +711,7 @@ func authStatusFor(message string) int {
 		return http.StatusConflict
 	// client_not_found / token_not_found：不是自己的应用或令牌按"不存在"处理，
 	// 不把"这东西存在但不属于你"透给调用方。
-	case "client_not_found", "token_not_found":
+	case "client_not_found", "token_not_found", "user_not_found":
 		return http.StatusNotFound
 	}
 	return http.StatusBadRequest

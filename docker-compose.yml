@@ -15,6 +15,8 @@ services:
       - AUTH_JWT_AUDIENCE=${AUTH_JWT_AUDIENCE:-metafusion}
       # 生产必须配置持久 RSA 私钥，否则重启即掉线（进程内临时密钥）。
       - AUTH_JWT_PRIVATE_KEY=${AUTH_JWT_PRIVATE_KEY:-}
+      # 与主仓目录/互动/存储同值；空 = credentials-status 服务身份 fail-closed。
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
     ports:
       - "8081:8081"
     networks:
