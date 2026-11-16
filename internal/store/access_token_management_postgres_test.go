@@ -122,6 +122,9 @@ func TestMCPClassificationMigrationPreservesCredentials(t *testing.T) {
 	if _, err = s.DB.ExecContext(ctx, "UPDATE auth.personal_access_tokens SET purpose='personal' WHERE id=$1", item.ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = s.DB.ExecContext(ctx, "UPDATE auth.personal_access_tokens SET expires_at=now()-interval '1 day' WHERE id=$1", item.ID); err != nil {
+		t.Fatal(err)
+	}
 	// A name alone must never cause a personal key to be classified as MCP.
 	personal, _, err := s.CreatePersonalAccessToken(ctx, owner, "MCP: personal label", []string{"catalog.entity.edit"}, 0)
 	if err != nil {

@@ -194,6 +194,8 @@ ALTER TABLE auth.personal_access_tokens ADD COLUMN IF NOT EXISTS deleted_at time
 -- mcp.connect has always denoted a delegated MCP connection, never a business permission.
 -- Preserve its credential/hash and classify legacy connections without guessing from their names.
 UPDATE auth.personal_access_tokens SET purpose='mcp' WHERE purpose='personal' AND scopes @> ARRAY['mcp.connect']::text[];
+-- MCP 委托凭据与 mcp.grants 对齐：撤销前不过期，清除早期遗留的 expires_at。
+UPDATE auth.personal_access_tokens SET expires_at=NULL WHERE purpose='mcp' AND revoked_at IS NULL AND deleted_at IS NULL AND expires_at IS NOT NULL;
 -- 列表与配额按 user_id 统计（每账号最多 10 张未吊销令牌），单独建索引避免全表扫。
 CREATE INDEX IF NOT EXISTS personal_access_tokens_user_idx ON auth.personal_access_tokens(user_id);
 -- 登录失败防护由 auth 持有；所有副本共用计数，标识只保存维度化 SHA-256。
