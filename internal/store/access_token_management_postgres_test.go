@@ -42,15 +42,18 @@ func TestManagedCredentialsAgainstPostgres(t *testing.T) {
 	if err := s.UpdateMCPToken(ctx, owner, delegated.ID, []string{"catalog.entity.edit"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.UpdateMCPToken(ctx, owner, delegated.ID, []string{"catalog.entity.edit", "catalog.relation.edit"}); err == nil || err.Error() != "scope_expansion_requires_authorization" {
-		t.Fatalf("MCP scope expansion accepted: %v", err)
+	if err := s.UpdateMCPToken(ctx, owner, delegated.ID, []string{"catalog.entity.edit", "catalog.relation.edit"}); err != nil {
+		t.Fatalf("MCP scope expansion within owner permissions rejected: %v", err)
+	}
+	if err := s.UpdateMCPToken(ctx, owner, delegated.ID, []string{"community.post.moderate"}); err == nil || !strings.HasPrefix(err.Error(), "scope_not_granted:") {
+		t.Fatalf("unheld MCP scope accepted: %v", err)
 	}
 	if n := patTotalCount(t, ctx, s, owner.ID); n != MaxPersonalAccessTokensPerUser+1 {
-		t.Fatalf("narrowing minted credentials: %d", n)
+		t.Fatalf("updating scopes minted credentials: %d", n)
 	}
 	current, err := s.IntrospectPersonalAccessToken(ctx, secret)
-	if err != nil || len(current.Scopes) != 2 {
-		t.Fatalf("original credential no longer usable after narrowing: %v", err)
+	if err != nil || len(current.Scopes) != 3 {
+		t.Fatalf("original credential no longer usable after scope update: %v", err)
 	}
 	name := "Renamed"
 	if proofOwner, proofID, err := s.RevokeMCPTokenByValue(ctx, personalSecret); err != nil || proofOwner != "" || proofID != "" {

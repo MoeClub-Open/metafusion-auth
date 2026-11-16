@@ -65,8 +65,12 @@ func TestAdminCredentialInventoryAgainstPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	expand := []string{"catalog.entity.edit"}
-	if err = s.UpdateAdminCredential(ctx, &admin, mcp.ID, AccessTokenUpdate{Scopes: &expand}); err == nil || err.Error() != "scope_expansion_requires_authorization" {
-		t.Fatalf("MCP scope expansion: %v", err)
+	if err = s.UpdateAdminCredential(ctx, &admin, mcp.ID, AccessTokenUpdate{Scopes: &expand}); err != nil {
+		t.Fatalf("MCP scope expansion within owner permissions failed: %v", err)
+	}
+	unheld := []string{"community.post.moderate"}
+	if err = s.UpdateAdminCredential(ctx, &admin, mcp.ID, AccessTokenUpdate{Scopes: &unheld}); err == nil || !strings.HasPrefix(err.Error(), "scope_not_granted:") {
+		t.Fatalf("MCP scope beyond owner permissions accepted: %v", err)
 	}
 	if err = s.RevokeAdminCredential(ctx, &admin, pat.ID); err != nil {
 		t.Fatal(err)

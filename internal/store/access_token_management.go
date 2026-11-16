@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -68,13 +67,6 @@ func (s *Store) updateAccessToken(ctx context.Context, actor *User, id, purpose 
 			scopes, err = NormalizePATScopes(*in.Scopes, actor)
 			if err != nil {
 				return err
-			}
-			if purpose == "mcp" {
-				for _, scope := range scopes {
-					if !slices.Contains(previous, scope) {
-						return fmt.Errorf("scope_expansion_requires_authorization")
-					}
-				}
 			}
 		}
 		_, err = tx.ExecContext(ctx, "UPDATE auth.personal_access_tokens SET name=$1,scopes=$2 WHERE id=$3 AND user_id=$4 AND purpose=$5 AND deleted_at IS NULL", name, pq.Array(scopes), id, actor.ID, purpose)

@@ -149,7 +149,7 @@ func (s *Store) UpdateAdminCredential(ctx context.Context, actor *User, id strin
 		return err
 	}
 	// Both the manager and owner must hold every delegated operation. The shared
-	// updater retains PAT restrictions and MCP consent narrowing.
+	// updater retains PAT and MCP scope restrictions.
 	if purpose == "mcp" && in.Scopes != nil {
 		scopes := append([]string{"mcp.connect"}, (*in.Scopes)...)
 		in.Scopes = &scopes

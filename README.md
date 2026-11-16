@@ -170,7 +170,7 @@ PAT 内省是另一套独立限流（IP 与令牌双维度，**不读**上面两
 - **创建参数校验**：名称 1–64 字（`400 invalid_token_name`）；权限码格式非法 `400 invalid_scope: <code>`、
   一个码都没有 `400 invalid_scope: empty`；`expires_in_days` 取 1–3650（`400 invalid_expiry`）；
   每账号最多 10 张有效的个人令牌（`400 token_limit_reached`），已过期、撤销、删除的不占额度。
-- **MCP 独立委托**：`POST/PATCH/DELETE /api/auth/mcp-tokens[/{id}]` 单独管理 MCP 凭据，每账号最多 50 个有效凭据，不出现在个人列表。缩减直接更新原凭据，扩权必须重新授权。客户端断开时可用 `POST /api/auth/mcp-tokens/revoke` 和完整委托秘密撤销其自身；该入口不能操作个人密钥，不记录秘密到审计。
+- **MCP 独立委托**：`POST/PATCH/DELETE /api/auth/mcp-tokens[/{id}]` 单独管理 MCP 凭据，每账号最多 50 个有效凭据，不出现在个人列表。调整权限直接更新原凭据，不重新签发。客户端断开时可用 `POST /api/auth/mcp-tokens/revoke` 和完整委托秘密撤销其自身；该入口不能操作个人密钥，不记录秘密到审计。
 - **`last_used_at` 的写节奏**：同一条令牌 **60 秒内只写一次**（与下游缓存同节奏）：内省在每个
   未命中缓存的请求上都会被调用，逐次 UPDATE 会把读路径变成写路径。
 - **`X-API-Key`**：字典里承诺的另一种携带方式由下游服务（目录 / 互动 / 存储）在各自的鉴权中间件里
